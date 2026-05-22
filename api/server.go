@@ -34,6 +34,9 @@ func NewRouter() (*gin.Engine, error) {
 	r.GET("/app", func(c *gin.Context) {
 		c.File("./ui/index.html")
 	})
+	r.GET("/sharing/:token", func(c *gin.Context) {
+		c.File("./ui/index.html")
+	})
 	r.GET("/login", func(c *gin.Context) {
 		c.File("./ui/index.html")
 	})
@@ -64,8 +67,13 @@ func NewRouter() (*gin.Engine, error) {
 			secure.GET("/files/:id", handlers.GetFile)
 			secure.PATCH("/files/:id", handlers.UpdateFile)
 			secure.DELETE("/files/:id", handlers.DeleteFile)
+			secure.POST("/share-links", handlers.CreateShareLink)
+			secure.GET("/notifications", handlers.ListNotifications)
+			secure.POST("/notifications/:id/read", handlers.ReadNotification)
 		}
 	}
+
+	r.GET("/api/share-links/:token", handlers.GetShareLink)
 
 	r.NoRoute(func(c *gin.Context) {
 		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {

@@ -14,6 +14,9 @@ const CACHE_TTL_MS = {
 const state = {
   token: localStorage.getItem(SESSION_STORAGE_KEY) || "",
   user: null,
+  isPublicShareMode: false,
+  publicShareToken: "",
+  publicShare: null,
   bots: [],
   chats: [],
   files: [],
@@ -42,6 +45,9 @@ const state = {
   // Preview
   previewFiles: [],
   previewIndex: 0,
+  notifications: [],
+  shareSelection: [],
+  generatedShareUrl: "",
 };
 
 let loadingDepth = 0;
@@ -86,6 +92,7 @@ const pageSizeSelector = document.getElementById("pageSizeSelector");
 const pageNumbersContainer = document.getElementById("pageNumbersContainer");
 const selectVisibleBtn = document.getElementById("selectVisibleBtn");
 const bulkDownloadBtn = document.getElementById("bulkDownloadBtn");
+const shareSelectedBtn = document.getElementById("shareSelectedBtn");
 const bulkFolderBtn = document.getElementById("bulkFolderBtn");
 const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
 const clearSelectionBtn = document.getElementById("clearSelectionBtn");
@@ -136,6 +143,18 @@ const previewOpenLink = document.getElementById("previewOpenLink");
 const previewPrevBtn = document.getElementById("previewPrevBtn");
 const previewNextBtn = document.getElementById("previewNextBtn");
 const toast = document.getElementById("toast");
+const shareModal = document.getElementById("shareModal");
+const shareForm = document.getElementById("shareForm");
+const shareTitle = document.getElementById("shareTitle");
+const shareRecipients = document.getElementById("shareRecipients");
+const shareNote = document.getElementById("shareNote");
+const shareFileSummary = document.getElementById("shareFileSummary");
+const shareLinkOutput = document.getElementById("shareLinkOutput");
+const copyShareLinkBtn = document.getElementById("copyShareLinkBtn");
+const shareButton = document.getElementById("shareSelectedBtn");
+const notificationsModal = document.getElementById("notificationsModal");
+const notificationsList = document.getElementById("notificationsList");
+const notificationBadge = document.getElementById("notificationBadge");
 
 // Fetch API Wrapper
 function api(path, options = {}) {
@@ -552,6 +571,8 @@ function setViewSection(section, category = "") {
   } else if (section === "trash") {
     document.getElementById("catTrash")?.classList.add("active");
     topSectionLabel.textContent = "Trash";
+  } else if (section === "sharing") {
+    topSectionLabel.textContent = "Sharing";
   }
 
   // Load workspace folders and files
@@ -564,6 +585,23 @@ function getFilteredFiles() {
   const folderTerm = state.folderFilter.toLowerCase();
   const fromDate = dateFromFilter ? dateFromFilter.value : "";
   const toDate = dateToFilter ? dateToFilter.value : "";
+
+  if (state.activeSection === "sharing") {
+    return state.files.slice().filter((file) => {
+      const haystack =
+        `${file.original_name || ""} ${file.file_id || ""} ${file.chat_title || ""} ${file.folder_name || ""}`.toLowerCase();
+      if (searchTerm && !haystack.includes(searchTerm)) return false;
+      if (
+        folderTerm &&
+        !(file.folder_name || "").toLowerCase().includes(folderTerm)
+      )
+        return false;
+      const dateValue = file.created_at ? file.created_at.slice(0, 10) : "";
+      if (fromDate && dateValue && dateValue < fromDate) return false;
+      if (toDate && dateValue && dateValue > toDate) return false;
+      return true;
+    });
+  }
 
   return state.files.slice().filter((file) => {
     // 1. Trash filter check
@@ -702,6 +740,10 @@ function renderFiles() {
     workspaceTitle.innerHTML = `${state.activeCategory.charAt(0).toUpperCase() + state.activeCategory.slice(1)} <span class="subtitle">Filtered file assets category</span>`;
   } else if (state.activeSection === "trash") {
     workspaceTitle.innerHTML = `Trash <span class="subtitle">Recently trashed workspace files</span>`;
+  } else if (state.activeSection === "sharing") {
+    const title = state.publicShare?.title || "Shared workspace";
+    const note = state.publicShare?.note || "Files shared with you";
+    workspaceTitle.innerHTML = `${escapeHtml(title)} <span class="subtitle">${escapeHtml(note)}</span>`;
   }
 
   // Dynamic Folders Section setup
@@ -773,6 +815,8 @@ function renderFiles() {
     card.setAttribute("data-record-id", file.record_id);
 
     const isTrashed = state.activeSection === "trash";
+    const isSharingWorkspace = state.activeSection === "sharing";
+    card.draggable = !isTrashed && !isSharingWorkspace;
 
     card.innerHTML = `
       <input type="checkbox" class="file-card__check" ${isChecked ? "checked" : ""} />
@@ -791,6 +835,10 @@ function renderFiles() {
           <button class="open-btn restore-btn" type="button">Restore</button>
           <button class="delete-btn perm-delete-btn" type="button">Delete</button>
         `
+          : isSharingWorkspace ?
+            `
+          ${file.secure_url ? `<a class="open-btn" href="${escapeHtml(file.secure_url)}" target="_blank" rel="noreferrer">Open</a>` : ""}
+        `
           : `
           ${file.secure_url ? `<a class="open-btn" href="${escapeHtml(file.secure_url)}" target="_blank" rel="noreferrer">Open</a>` : ""}
           <button class="action-btn rename-btn" type="button">Rename</button>
@@ -804,6 +852,16 @@ function renderFiles() {
     const checkEl = card.querySelector(".file-card__check");
     checkEl.addEventListener("change", (e) => {
       toggleSelectedFile(file.record_id, e.target.checked);
+    });
+
+    card.addEventListener("dragstart", (event) => {
+      if (!card.draggable) return;
+      event.dataTransfer?.setData("text/plain", file.record_id);
+      event.dataTransfer?.setData(
+        "application/x-telerealm-file-id",
+        file.record_id,
+      );
+      event.dataTransfer?.setDragImage(card, 24, 24);
     });
 
     const previewEl = card.querySelector(".thumb");
@@ -908,14 +966,210 @@ function renderSelectionSummary() {
     clearSelectionBtn.classList.toggle("hidden", count === 0);
   }
   const disabled = count === 0;
+  const shareDisabled =
+    disabled || state.activeSection === "sharing" || state.isPublicShareMode;
   [bulkDownloadBtn, bulkFolderBtn, bulkDeleteBtn].forEach((btn) => {
-    if (btn) btn.disabled = disabled;
+    if (btn) btn.disabled = disabled || state.isPublicShareMode;
   });
+  if (shareSelectedBtn) shareSelectedBtn.disabled = shareDisabled;
+}
+
+function parseRecipientEmails(text) {
+  return String(text || "")
+    .split(/[,\n;]/)
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function getPublicShareTokenFromPath() {
+  const match = window.location.pathname.match(/^\/sharing\/([^/]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+function updateShareSelectionSummary() {
+  if (!shareFileSummary) return;
+  const selected = state.files.filter((file) =>
+    state.selectedFileIDs.has(file.record_id),
+  );
+  if (selected.length === 0) {
+    shareFileSummary.textContent =
+      "Select at least one file to create a share link.";
+    return;
+  }
+  const preview = selected
+    .slice(0, 3)
+    .map((file) => file.original_name || file.record_id)
+    .join(", ");
+  shareFileSummary.textContent =
+    selected.length > 3 ?
+      `${selected.length} files selected: ${preview}, ...`
+    : `${selected.length} files selected: ${preview}`;
+}
+
+function openShareModal() {
+  const selected = state.files.filter((file) =>
+    state.selectedFileIDs.has(file.record_id),
+  );
+  if (selected.length === 0) {
+    showToast("Select at least one file first", "error");
+    return;
+  }
+  state.shareSelection = selected.map((file) => file.record_id);
+  state.generatedShareUrl = "";
+  if (shareForm) shareForm.reset();
+  if (shareLinkOutput) shareLinkOutput.value = "";
+  if (copyShareLinkBtn) copyShareLinkBtn.disabled = true;
+  updateShareSelectionSummary();
+  openModal(shareModal);
+}
+
+async function submitShareLink(event) {
+  event.preventDefault();
+  const fileIDs =
+    state.shareSelection.length ?
+      state.shareSelection
+    : Array.from(state.selectedFileIDs);
+  if (!fileIDs.length) {
+    showToast("Select at least one file first", "error");
+    return;
+  }
+
+  const payload = {
+    file_ids: fileIDs,
+    recipient_emails: parseRecipientEmails(shareRecipients?.value || ""),
+    title: shareTitle?.value?.trim() || "Shared workspace",
+    note: shareNote?.value?.trim() || "",
+  };
+
+  try {
+    const response = await api("/api/share-links", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const data = unwrap(response) || {};
+    const share = data.share || {};
+    const shareURL = share.share_url || `/sharing/${share.token || ""}`;
+    state.generatedShareUrl = shareURL;
+    if (shareLinkOutput)
+      shareLinkOutput.value = new URL(
+        shareURL,
+        window.location.origin,
+      ).toString();
+    if (copyShareLinkBtn) copyShareLinkBtn.disabled = false;
+    if (notificationBadge) {
+      const notificationCount =
+        Array.isArray(data.notifications) ? data.notifications.length : 0;
+      if (notificationCount > 0) {
+        notificationBadge.textContent = String(notificationCount);
+        notificationBadge.style.display = "inline-block";
+      }
+    }
+    showToast("Share link created successfully", "success");
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function copyGeneratedShareLink() {
+  if (!shareLinkOutput?.value) return;
+  try {
+    await navigator.clipboard.writeText(shareLinkOutput.value);
+    showToast("Share link copied", "success");
+  } catch (_error) {
+    showToast("Failed to copy share link", "error");
+  }
+}
+
+async function loadNotifications() {
+  if (!state.token) return [];
+  const response = await api("/api/notifications");
+  const notifications = normalizeCollection(unwrap(response));
+  state.notifications = notifications;
+  if (notificationBadge) {
+    const unread = notifications.filter((item) => !item.read_at).length;
+    if (unread > 0) {
+      notificationBadge.textContent = String(unread);
+      notificationBadge.style.display = "inline-block";
+    } else {
+      notificationBadge.style.display = "none";
+    }
+  }
+  return notifications;
+}
+
+function renderNotifications() {
+  if (!notificationsList) return;
+  if (!state.notifications.length) {
+    notificationsList.innerHTML = "No notifications yet.";
+    return;
+  }
+
+  notificationsList.innerHTML = state.notifications
+    .map((notification) => {
+      const unread = !notification.read_at;
+      return `
+        <button class="notification-item ${unread ? "is-unread" : ""}" type="button" data-target-url="${escapeHtml(notification.target_url || "")}" data-notification-id="${escapeHtml(notification.id || "")}" style="width: 100%; text-align: left; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); padding: 12px 14px; border-radius: 12px; margin-bottom: 10px; cursor: pointer;">
+          <strong style="display:block; margin-bottom: 4px;">${escapeHtml(notification.title || "Notification")}</strong>
+          <span style="display:block; color: var(--text-muted); font-size: 13px; margin-bottom: 4px;">${escapeHtml(notification.message || "")}</span>
+          <small style="color: var(--text-muted);">${escapeHtml(notification.target_url || "")}</small>
+        </button>
+      `;
+    })
+    .join("");
+
+  notificationsList.querySelectorAll("[data-target-url]").forEach((item) => {
+    item.addEventListener("click", async () => {
+      const targetUrl = item.getAttribute("data-target-url") || "/";
+      const notificationID = item.getAttribute("data-notification-id") || "";
+      if (notificationID) {
+        try {
+          await api(`/api/notifications/${notificationID}/read`, {
+            method: "POST",
+          });
+        } catch (_error) {
+          // ignore mark-read failures
+        }
+      }
+      window.location.assign(targetUrl);
+    });
+  });
+}
+
+async function openNotificationsModal() {
+  if (!state.token) return;
+  try {
+    await loadNotifications();
+    renderNotifications();
+    openModal(notificationsModal);
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function loadPublicShare(token) {
+  const response = await fetch(`/api/share-links/${encodeURIComponent(token)}`);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || "Share link not found");
+  }
+  const data = unwrap(payload) || {};
+  const files = normalizeCollection(data.files || data);
+  state.isPublicShareMode = true;
+  state.publicShareToken = token;
+  state.publicShare = data.share || { token };
+  state.activeSection = "sharing";
+  state.files = files;
+  state.selectedFileIDs.clear();
+  state.activeBot = null;
+  state.activeChat = null;
+  renderFiles();
 }
 
 function clearSelection() {
   state.selectedFileIDs.clear();
+  state.shareSelection = [];
   renderSelectionSummary();
+  updateShareSelectionSummary();
   document
     .querySelectorAll(".file-card__check")
     .forEach((cb) => (cb.checked = false));
@@ -1363,11 +1617,17 @@ function clearSession() {
   const previousToken = state.token;
   state.token = "";
   state.user = null;
+  state.isPublicShareMode = false;
+  state.publicShareToken = "";
+  state.publicShare = null;
   state.bots = [];
   state.chats = [];
   state.files = [];
   state.activeBot = null;
   state.activeChat = null;
+  state.notifications = [];
+  state.shareSelection = [];
+  state.generatedShareUrl = "";
   localStorage.removeItem(SESSION_STORAGE_KEY);
   clearSnapshotCacheForToken(previousToken);
 }
@@ -1485,7 +1745,7 @@ function bindEvents() {
     fileSearch.focus();
   });
   document.getElementById("navNotifications").addEventListener("click", () => {
-    showToast("You have 0 unread alerts at this time.", "success");
+    openNotificationsModal();
   });
 
   // Categories buttons triggers
@@ -1672,6 +1932,34 @@ function bindEvents() {
     renderFiles();
   });
 
+  shareSelectedBtn?.addEventListener("click", () => {
+    if (state.activeSection === "sharing" || state.isPublicShareMode) return;
+    openShareModal();
+  });
+
+  shareSelectedBtn?.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    shareSelectedBtn.classList.add("is-dragover");
+  });
+
+  shareSelectedBtn?.addEventListener("dragleave", () => {
+    shareSelectedBtn.classList.remove("is-dragover");
+  });
+
+  shareSelectedBtn?.addEventListener("drop", (event) => {
+    event.preventDefault();
+    shareSelectedBtn.classList.remove("is-dragover");
+    const droppedID =
+      event.dataTransfer?.getData("application/x-telerealm-file-id") ||
+      event.dataTransfer?.getData("text/plain");
+    if (droppedID) {
+      state.selectedFileIDs.add(droppedID);
+      renderSelectionSummary();
+      renderFiles();
+    }
+    openShareModal();
+  });
+
   clearSelectionBtn?.addEventListener("click", () => clearSelection());
 
   // Bulk Operations
@@ -1687,6 +1975,9 @@ function bindEvents() {
     });
     showToast("Opening selected shareable URLs", "success");
   });
+
+  shareForm?.addEventListener("submit", submitShareLink);
+  copyShareLinkBtn?.addEventListener("click", copyGeneratedShareLink);
 
   bulkFolderBtn.addEventListener("click", async () => {
     const selected = state.files.filter((f) =>
@@ -1796,6 +2087,8 @@ function bindEvents() {
       closeModal(settingsModal);
       closeModal(helpModal);
       closeModal(previewModal);
+      closeModal(shareModal);
+      closeModal(notificationsModal);
       clearUploadSelection();
     });
   });
@@ -1878,6 +2171,28 @@ async function bootstrap() {
   setSidebarCollapsed(state.sidebarCollapsed);
   setViewSection("home");
 
+  const publicShareToken = getPublicShareTokenFromPath();
+  if (publicShareToken) {
+    try {
+      await loadPublicShare(publicShareToken);
+      await loadNotifications().catch(() => []);
+      appScreen.classList.remove("hidden");
+      authScreen.classList.add("hidden");
+      if (shareSelectedBtn) shareSelectedBtn.disabled = true;
+      if (bulkDownloadBtn) bulkDownloadBtn.disabled = true;
+      if (bulkFolderBtn) bulkFolderBtn.disabled = true;
+      if (bulkDeleteBtn) bulkDeleteBtn.disabled = true;
+      if (uploadBtn) uploadBtn.disabled = true;
+      if (syncChatsBtn) syncChatsBtn.disabled = true;
+      return;
+    } catch (err) {
+      authScreen.classList.remove("hidden");
+      appScreen.classList.add("hidden");
+      showAuthMessage(err.message, true);
+      return;
+    }
+  }
+
   if (!state.token) {
     authScreen.classList.remove("hidden");
     appScreen.classList.add("hidden");
@@ -1893,6 +2208,7 @@ async function bootstrap() {
     authScreen.classList.add("hidden");
 
     await loadBots();
+    await loadNotifications().catch(() => []);
   } catch (err) {
     clearSession();
     authScreen.classList.remove("hidden");

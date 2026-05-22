@@ -174,6 +174,25 @@
                 <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
               </svg>
               <span>Notifications</span>
+              <span
+                id="notificationBadge"
+                style="
+                  display: none;
+                  position: absolute;
+                  top: -4px;
+                  right: -2px;
+                  min-width: 18px;
+                  height: 18px;
+                  border-radius: 999px;
+                  background: var(--danger);
+                  color: #fff;
+                  font-size: 11px;
+                  line-height: 18px;
+                  text-align: center;
+                  padding: 0 4px;
+                "
+                >0</span
+              >
             </button>
           </nav>
 
@@ -537,6 +556,13 @@
                 Download selected
               </button>
               <button
+                id="shareSelectedBtn"
+                class="ghost-btn"
+                type="button"
+                disabled>
+                Share link
+              </button>
+              <button
                 id="bulkFolderBtn"
                 class="ghost-btn"
                 type="button"
@@ -779,6 +805,82 @@
               >Open original</a
             >
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Create Share Link -->
+    <div id="shareModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="share"></div>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Create share link</h2>
+          <button class="close-btn" type="button" data-close-modal="share">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="shareForm" class="modal-form">
+            <label>
+              Link title
+              <input
+                id="shareTitle"
+                type="text"
+                name="title"
+                placeholder="Shared photos for friends" />
+            </label>
+            <label>
+              Invite Gmail addresses
+              <textarea
+                id="shareRecipients"
+                name="recipient_emails"
+                rows="3"
+                placeholder="friend@gmail.com, coworker@gmail.com"></textarea>
+            </label>
+            <label>
+              Note
+              <textarea
+                id="shareNote"
+                name="note"
+                rows="3"
+                placeholder="Optional message for your friends"></textarea>
+            </label>
+            <p id="shareFileSummary" class="message"></p>
+            <input
+              id="shareLinkOutput"
+              type="text"
+              readonly
+              placeholder="Generated share URL will appear here" />
+            <div style="display: flex; gap: 12px; flex-wrap: wrap">
+              <button class="primary-btn" type="submit">Create link</button>
+              <button
+                id="copyShareLinkBtn"
+                class="ghost-btn"
+                type="button"
+                disabled>
+                Copy generated link
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Notifications -->
+    <div id="notificationsModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="notifications"></div>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Notifications</h2>
+          <button
+            class="close-btn"
+            type="button"
+            data-close-modal="notifications">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body" style="max-height: 70vh; overflow: auto">
+          <div id="notificationsList" class="message">Loading...</div>
         </div>
       </div>
     </div>

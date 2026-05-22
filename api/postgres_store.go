@@ -156,11 +156,41 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		`CREATE TABLE IF NOT EXISTS share_links (
+			id TEXT PRIMARY KEY,
+			owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			token TEXT NOT NULL UNIQUE,
+			title TEXT,
+			note TEXT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS share_link_files (
+			share_link_id TEXT NOT NULL REFERENCES share_links(id) ON DELETE CASCADE,
+			file_record_id TEXT NOT NULL REFERENCES files(record_id) ON DELETE CASCADE,
+			PRIMARY KEY (share_link_id, file_record_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS notifications (
+			id TEXT PRIMARY KEY,
+			user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+			recipient_email TEXT,
+			kind TEXT NOT NULL,
+			title TEXT NOT NULL,
+			message TEXT NOT NULL,
+			target_url TEXT NOT NULL,
+			share_link_token TEXT,
+			read_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_bots_user_id ON bots(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_chats_lookup ON chats(user_id, bot_id, chat_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_files_lookup ON files(user_id, bot_id, chat_id)`,
 		`ALTER TABLE files ADD COLUMN IF NOT EXISTS folder_name TEXT`,
+		`CREATE INDEX IF NOT EXISTS idx_share_links_owner_id ON share_links(owner_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_share_links_token ON share_links(token)`,
+		`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_notifications_recipient_email ON notifications(recipient_email)`,
 	}
 
 	for _, statement := range statements {
@@ -850,4 +880,261 @@ func (s *Store) UpdateUserTheme(userID string, theme string) error {
 		WHERE id = $2
 	`, theme, userID)
 	return err
+}
+
+func (s *Store) CreateShareLink(ownerID string, req models.ShareLinkCreateRequest) (models.SharedFileView, []models.Notification, error) {
+	ownerID = strings.TrimSpace(ownerID)
+	if ownerID == "" {
+		return models.SharedFileView{}, nil, fmt.Errorf("owner_id is required")
+	}
+
+	fileIDs := uniqueStrings(req.FileIDs)
+	if len(fileIDs) == 0 {
+		return models.SharedFileView{}, nil, fmt.Errorf("at least one file_id is required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return models.SharedFileView{}, nil, err
+	}
+	defer tx.Rollback()
+
+	var owner models.User
+	if err := tx.QueryRowContext(ctx, `
+		SELECT id, name, email, password_hash, created_at, updated_at, theme
+		FROM users
+		WHERE id = $1
+	`, ownerID).Scan(&owner.ID, &owner.Name, &owner.Email, &owner.PasswordHash, &owner.CreatedAt, &owner.UpdatedAt, &owner.Theme); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.SharedFileView{}, nil, fmt.Errorf("owner not found")
+		}
+		return models.SharedFileView{}, nil, err
+	}
+
+	files := make([]models.FileRecord, 0, len(fileIDs))
+	for _, fileID := range fileIDs {
+		file, found, err := s.findFileTx(ctx, tx, ownerID, fileID)
+		if err != nil {
+			return models.SharedFileView{}, nil, err
+		}
+		if !found {
+			return models.SharedFileView{}, nil, fmt.Errorf("file record not found: %s", fileID)
+		}
+		files = append(files, file)
+	}
+
+	share := models.ShareLink{
+		ID:        uuid.NewString(),
+		OwnerID:   ownerID,
+		Token:     uuid.NewString(),
+		Title:     strings.TrimSpace(req.Title),
+		Note:      strings.TrimSpace(req.Note),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if share.Title == "" {
+		share.Title = "Shared workspace"
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO share_links (id, owner_id, token, title, note, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, share.ID, share.OwnerID, share.Token, share.Title, share.Note, share.CreatedAt, share.UpdatedAt); err != nil {
+		return models.SharedFileView{}, nil, err
+	}
+
+	for _, file := range files {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO share_link_files (share_link_id, file_record_id)
+			VALUES ($1, $2)
+		`, share.ID, file.RecordID); err != nil {
+			return models.SharedFileView{}, nil, err
+		}
+	}
+
+	shareURL := "/sharing/" + share.Token
+	notifications := make([]models.Notification, 0)
+	for _, email := range uniqueStrings(req.RecipientEmails) {
+		if email == "" {
+			continue
+		}
+		notification := models.Notification{
+			ID:             uuid.NewString(),
+			RecipientEmail: strings.ToLower(strings.TrimSpace(email)),
+			Kind:           "share_link",
+			Title:          fmt.Sprintf("%s shared files with you", owner.Name),
+			Message:        share.Title,
+			TargetURL:      shareURL,
+			ShareLinkToken: share.Token,
+			CreatedAt:      time.Now().UTC(),
+		}
+		if userID, found := s.findUserIDByEmailTx(ctx, tx, notification.RecipientEmail); found {
+			notification.UserID = userID
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO notifications (id, user_id, recipient_email, kind, title, message, target_url, share_link_token, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`, notification.ID, nullableString(notification.UserID), nullableString(notification.RecipientEmail), notification.Kind, notification.Title, notification.Message, notification.TargetURL, notification.ShareLinkToken, notification.CreatedAt); err != nil {
+			return models.SharedFileView{}, nil, err
+		}
+		notifications = append(notifications, notification)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return models.SharedFileView{}, nil, err
+	}
+
+	return models.SharedFileView{ShareLink: share, ShareURL: shareURL, Files: files}, notifications, nil
+}
+
+func (s *Store) GetShareLink(token string) (models.SharedFileView, bool) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return models.SharedFileView{}, false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var share models.ShareLink
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT id, owner_id, token, COALESCE(title, ''), COALESCE(note, ''), created_at, updated_at
+		FROM share_links
+		WHERE token = $1
+	`, token).Scan(&share.ID, &share.OwnerID, &share.Token, &share.Title, &share.Note, &share.CreatedAt, &share.UpdatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.SharedFileView{}, false
+		}
+		return models.SharedFileView{}, false
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT f.record_id, f.user_id, f.bot_id, f.bot_token, COALESCE(f.bot_name, ''), COALESCE(f.bot_username, ''), f.file_id, f.chat_id,
+			COALESCE(f.chat_title, ''), COALESCE(f.chat_type, ''), COALESCE(f.folder_name, ''), f.url, f.secure_url, f.bytes, COALESCE(f.format, ''), COALESCE(f.original_name, ''), f.created_at, f.updated_at
+		FROM share_link_files slf
+		JOIN files f ON f.record_id = slf.file_record_id
+		WHERE slf.share_link_id = $1
+		ORDER BY f.created_at DESC
+	`, share.ID)
+	if err != nil {
+		return models.SharedFileView{}, false
+	}
+	defer rows.Close()
+
+	files := make([]models.FileRecord, 0)
+	for rows.Next() {
+		var file models.FileRecord
+		var bytesValue int64
+		if err := rows.Scan(&file.RecordID, &file.UserID, &file.BotID, &file.BotToken, &file.BotName, &file.BotUsername, &file.FileID, &file.ChatID, &file.ChatTitle, &file.ChatType, &file.FolderName, &file.URL, &file.SecureURL, &bytesValue, &file.Format, &file.OriginalName, &file.CreatedAt, &file.UpdatedAt); err != nil {
+			continue
+		}
+		file.Bytes = int(bytesValue)
+		files = append(files, file)
+	}
+
+	return models.SharedFileView{ShareLink: share, ShareURL: "/sharing/" + share.Token, Files: files}, true
+}
+
+func (s *Store) ListNotifications(userID string) []models.Notification {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT n.id, COALESCE(n.user_id, ''), COALESCE(n.recipient_email, ''), n.kind, n.title, n.message, n.target_url, COALESCE(n.share_link_token, ''), n.read_at, n.created_at
+		FROM notifications n
+		WHERE n.user_id = $1
+		   OR lower(COALESCE(n.recipient_email, '')) = lower(COALESCE((SELECT email FROM users WHERE id = $1), ''))
+		ORDER BY n.created_at DESC
+	`, userID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	notifications := make([]models.Notification, 0)
+	for rows.Next() {
+		var notification models.Notification
+		if err := rows.Scan(&notification.ID, &notification.UserID, &notification.RecipientEmail, &notification.Kind, &notification.Title, &notification.Message, &notification.TargetURL, &notification.ShareLinkToken, &notification.ReadAt, &notification.CreatedAt); err != nil {
+			continue
+		}
+		notifications = append(notifications, notification)
+	}
+
+	return notifications
+}
+
+func (s *Store) MarkNotificationRead(userID, notificationID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE notifications
+		SET read_at = NOW()
+		WHERE id = $1
+		  AND (
+			user_id = $2
+			OR lower(COALESCE(recipient_email, '')) = lower(COALESCE((SELECT email FROM users WHERE id = $2), ''))
+		  )
+	`, notificationID, userID)
+	return err
+}
+
+func (s *Store) findFileTx(ctx context.Context, tx *sql.Tx, userID, fileID string) (models.FileRecord, bool, error) {
+	var file models.FileRecord
+	var bytesValue int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT record_id, user_id, bot_id, bot_token, COALESCE(bot_name, ''), COALESCE(bot_username, ''), file_id, chat_id,
+			COALESCE(chat_title, ''), COALESCE(chat_type, ''), COALESCE(folder_name, ''), url, secure_url, bytes, COALESCE(format, ''), COALESCE(original_name, ''), created_at, updated_at
+		FROM files
+		WHERE user_id = $1 AND record_id = $2
+	`, userID, fileID).Scan(&file.RecordID, &file.UserID, &file.BotID, &file.BotToken, &file.BotName, &file.BotUsername, &file.FileID, &file.ChatID, &file.ChatTitle, &file.ChatType, &file.FolderName, &file.URL, &file.SecureURL, &bytesValue, &file.Format, &file.OriginalName, &file.CreatedAt, &file.UpdatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.FileRecord{}, false, nil
+		}
+		return models.FileRecord{}, false, err
+	}
+	file.Bytes = int(bytesValue)
+	return file, true, nil
+}
+
+func (s *Store) findUserIDByEmailTx(ctx context.Context, tx *sql.Tx, email string) (string, bool) {
+	var userID string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT id
+		FROM users
+		WHERE lower(email) = lower($1)
+	`, email).Scan(&userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", false
+		}
+		return "", false
+	}
+	return userID, true
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{})
+	output := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(strings.ToLower(value))
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		output = append(output, trimmed)
+	}
+	return output
+}
+
+func nullableString(value string) interface{} {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return value
 }

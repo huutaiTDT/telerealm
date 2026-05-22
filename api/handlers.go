@@ -276,6 +276,59 @@ func (h *Handlers) DeleteFile(c *gin.Context) {
 	c.JSON(http.StatusOK, models.Response{Success: true, Message: "File deleted", Data: gin.H{"record_id": fileID}})
 }
 
+func (h *Handlers) CreateShareLink(c *gin.Context) {
+	userID := c.MustGet("user_id").(string)
+	var req models.ShareLinkCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+
+	share, notifications, err := h.service.CreateShareLink(userID, req)
+	if err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, models.Response{Success: true, Message: "Share link created", Data: gin.H{
+		"share":        share,
+		"notifications": notifications,
+	}})
+}
+
+func (h *Handlers) GetShareLink(c *gin.Context) {
+	token := c.Param("token")
+	share, found := h.service.GetShareLink(token)
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "share link not found"})
+		return
+	}
+
+	share.Files = normalizeFileRecordsForResponse(c, share.Files)
+	c.JSON(http.StatusOK, models.Response{Success: true, Message: "Share link loaded", Data: gin.H{"share": share, "files": share.Files}})
+}
+
+func (h *Handlers) ListNotifications(c *gin.Context) {
+	userID := c.MustGet("user_id").(string)
+	notifications := h.service.ListNotifications(userID)
+	c.JSON(http.StatusOK, models.Response{Success: true, Message: "Notifications loaded", Data: notifications})
+}
+
+func (h *Handlers) ReadNotification(c *gin.Context) {
+	userID := c.MustGet("user_id").(string)
+	notificationID := c.Param("id")
+	if err := h.service.MarkNotificationRead(userID, notificationID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Response{Success: true, Message: "Notification updated", Data: nil})
+}
+
 func (h *Handlers) DownloadFile(c *gin.Context) {
 	key := strings.TrimSpace(c.Param("key"))
 	if key == "" {

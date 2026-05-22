@@ -198,6 +198,22 @@ func (s *Service) UpdateUserTheme(userID string, theme string) error {
 	return s.store.UpdateUserTheme(userID, theme)
 }
 
+func (s *Service) CreateShareLink(userID string, req models.ShareLinkCreateRequest) (models.SharedFileView, []models.Notification, error) {
+	return s.store.CreateShareLink(userID, req)
+}
+
+func (s *Service) GetShareLink(token string) (models.SharedFileView, bool) {
+	return s.store.GetShareLink(token)
+}
+
+func (s *Service) ListNotifications(userID string) []models.Notification {
+	return s.store.ListNotifications(userID)
+}
+
+func (s *Service) MarkNotificationRead(userID, notificationID string) error {
+	return s.store.MarkNotificationRead(userID, notificationID)
+}
+
 func fileExtension(name string) string {
 	idx := strings.LastIndex(name, ".")
 	if idx == -1 {
