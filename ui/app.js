@@ -2,6 +2,14 @@
 
 const STORAGE_KEY = "telerealm.sessionToken";
 const TRASH_STORAGE_KEY = "telerealm.trashedFileIDs";
+const THUMBNAIL_SCALE_KEY = "telerealm.thumbnailScale";
+const SNAPSHOT_CACHE_KEY = "telerealm.snapshotCache.v1";
+
+const CACHE_TTL_MS = {
+  bots: 90_000,
+  chats: 60_000,
+  files: 45_000,
+};
 
 const state = {
   token: localStorage.getItem(STORAGE_KEY) || "",
@@ -25,6 +33,9 @@ const state = {
   folderFilter: "",
   currentPage: 1,
   pageSize: 8,
+  visibleCount: 0,
+  fileRenderSignature: "",
+  thumbnailScale: Number(localStorage.getItem(THUMBNAIL_SCALE_KEY) || "1"),
   selectedFileIDs: new Set(),
   trashedFileIDs: new Set(
     JSON.parse(localStorage.getItem(TRASH_STORAGE_KEY) || "[]"),
@@ -36,6 +47,7 @@ const state = {
 };
 
 let loadingDepth = 0;
+const memorySnapshotCache = new Map();
 
 let pendingUploadFiles = [];
 let dragDepth = 0;
@@ -57,6 +69,7 @@ const chatList = document.getElementById("chatList");
 const fileGrid = document.getElementById("fileGrid");
 const foldersSection = document.getElementById("foldersSection");
 const foldersGrid = document.getElementById("foldersGrid");
+const workspacePanel = document.querySelector(".workspace");
 
 // Title, Breadcrumbs, Headers
 const workspaceTitle = document.getElementById("workspaceTitle");
@@ -218,6 +231,244 @@ function applySidebarTooltips() {
       element.removeAttribute("title");
     }
   });
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 768px)").matches;
+}
+
+function getAdaptiveBatchSize() {
+  if (state.viewMode !== "grid") {
+    return Math.max(8, state.pageSize);
+  }
+
+  const gridWidth = fileGrid?.clientWidth || window.innerWidth;
+  const minCardWidth = Math.max(150, Math.round(220 * state.thumbnailScale));
+  const estimatedColumns = Math.max(
+    1,
+    Math.floor((gridWidth + 20) / (minCardWidth + 20)),
+  );
+  const viewportHeight = workspacePanel?.clientHeight || window.innerHeight;
+  const estimatedRowHeight = Math.max(
+    180,
+    Math.round(250 * state.thumbnailScale),
+  );
+  const rowsPerScreen = Math.max(
+    2,
+    Math.ceil(viewportHeight / estimatedRowHeight),
+  );
+
+  let batch = estimatedColumns * rowsPerScreen * 2;
+  if (isMobileViewport()) {
+    batch = Math.max(12, batch);
+  }
+
+  return clamp(batch, 8, 120);
+}
+
+function getFilesRenderSignature() {
+  const trashCount = state.trashedFileIDs.size;
+  const activeChatId = state.activeChat?.chat_id || "";
+  const fromDate = dateFromFilter?.value || "";
+  const toDate = dateToFilter?.value || "";
+  return [
+    state.activeSection,
+    state.activeCategory,
+    state.activeFolder || "",
+    state.search,
+    state.folderFilter,
+    fromDate,
+    toDate,
+    activeChatId,
+    state.viewMode,
+    state.files.length,
+    trashCount,
+    state.thumbnailScale,
+  ].join("|");
+}
+
+function applyGridScale() {
+  if (!fileGrid) return;
+  fileGrid.style.setProperty(
+    "--grid-thumb-scale",
+    String(state.thumbnailScale),
+  );
+}
+
+function resetVisibleItems() {
+  state.visibleCount = getAdaptiveBatchSize();
+}
+
+function loadMoreVisibleItems(totalItems) {
+  if (state.viewMode !== "grid") return false;
+  if (state.visibleCount >= totalItems) return false;
+
+  state.visibleCount = Math.min(
+    totalItems,
+    state.visibleCount + getAdaptiveBatchSize(),
+  );
+  return true;
+}
+
+function tryLoadMoreOnScroll() {
+  if (state.viewMode !== "grid" || !workspacePanel) return;
+
+  const remaining =
+    workspacePanel.scrollHeight -
+    workspacePanel.scrollTop -
+    workspacePanel.clientHeight;
+
+  if (remaining > 280) return;
+
+  const totalItems = getFilteredFiles().length;
+  if (loadMoreVisibleItems(totalItems)) {
+    renderFiles();
+  }
+}
+
+function handleGridZoomWheel(event) {
+  if (state.viewMode !== "grid") return;
+  if (!event.ctrlKey && !event.metaKey) return;
+
+  event.preventDefault();
+  const nextScale = clamp(
+    state.thumbnailScale + (event.deltaY < 0 ? 0.08 : -0.08),
+    0.75,
+    1.6,
+  );
+
+  if (nextScale === state.thumbnailScale) return;
+
+  state.thumbnailScale = Number(nextScale.toFixed(2));
+  localStorage.setItem(THUMBNAIL_SCALE_KEY, String(state.thumbnailScale));
+  applyGridScale();
+
+  const minVisible = getAdaptiveBatchSize();
+  state.visibleCount = Math.max(state.visibleCount, minVisible);
+  renderFiles();
+}
+
+function safeJsonParse(value, fallback) {
+  try {
+    return JSON.parse(value);
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+function tokenScopeFrom(token) {
+  return token ? token.slice(0, 24) : "anon";
+}
+
+function getCurrentTokenScope() {
+  return tokenScopeFrom(state.token);
+}
+
+function buildSnapshotCacheKey(scope, suffix = "") {
+  return `${getCurrentTokenScope()}:${scope}:${suffix}`;
+}
+
+function readSnapshotStore() {
+  const raw = sessionStorage.getItem(SNAPSHOT_CACHE_KEY);
+  return safeJsonParse(raw || "{}", {});
+}
+
+function writeSnapshotStore(store) {
+  sessionStorage.setItem(SNAPSHOT_CACHE_KEY, JSON.stringify(store));
+}
+
+function readSnapshotCache(cacheKey, ttlMs) {
+  const now = Date.now();
+
+  const memoryEntry = memorySnapshotCache.get(cacheKey);
+  if (memoryEntry && now - memoryEntry.ts <= ttlMs) {
+    return memoryEntry.data;
+  }
+  if (memoryEntry) {
+    memorySnapshotCache.delete(cacheKey);
+  }
+
+  const store = readSnapshotStore();
+  const entry = store[cacheKey];
+  if (!entry) return null;
+
+  if (now - entry.ts > ttlMs) {
+    delete store[cacheKey];
+    writeSnapshotStore(store);
+    return null;
+  }
+
+  memorySnapshotCache.set(cacheKey, entry);
+  return entry.data;
+}
+
+function writeSnapshotCache(cacheKey, data) {
+  const entry = { ts: Date.now(), data };
+  memorySnapshotCache.set(cacheKey, entry);
+
+  const store = readSnapshotStore();
+  store[cacheKey] = entry;
+  writeSnapshotStore(store);
+}
+
+function removeSnapshotCacheBy(predicate) {
+  const store = readSnapshotStore();
+  let changed = false;
+
+  Object.keys(store).forEach((key) => {
+    if (!predicate(key)) return;
+    delete store[key];
+    changed = true;
+  });
+
+  if (changed) {
+    writeSnapshotStore(store);
+  }
+
+  Array.from(memorySnapshotCache.keys()).forEach((key) => {
+    if (predicate(key)) {
+      memorySnapshotCache.delete(key);
+    }
+  });
+}
+
+function invalidateSnapshotScope(scope, suffixPrefix = "") {
+  const prefix = `${getCurrentTokenScope()}:${scope}:`;
+  removeSnapshotCacheBy(
+    (key) =>
+      key.startsWith(prefix) &&
+      (!suffixPrefix || key.startsWith(`${prefix}${suffixPrefix}`)),
+  );
+}
+
+function clearSnapshotCacheForToken(token) {
+  const scopePrefix = `${tokenScopeFrom(token)}:`;
+  removeSnapshotCacheBy((key) => key.startsWith(scopePrefix));
+}
+
+async function fetchWithSnapshotCache({
+  scope,
+  suffix = "",
+  ttlMs,
+  force = false,
+  loader,
+}) {
+  const cacheKey = buildSnapshotCacheKey(scope, suffix);
+
+  if (!force) {
+    const cached = readSnapshotCache(cacheKey, ttlMs);
+    if (cached !== null) {
+      return cached;
+    }
+  }
+
+  const freshData = await loader();
+  writeSnapshotCache(cacheKey, freshData);
+  return freshData;
 }
 
 async function withLoading(message, task) {
@@ -447,6 +698,14 @@ function renderFiles() {
   fileGrid.innerHTML = "";
   fileGrid.className =
     state.viewMode === "list" ? "files-grid list-mode" : "files-grid";
+  applyGridScale();
+
+  const nextSignature = getFilesRenderSignature();
+  if (nextSignature !== state.fileRenderSignature) {
+    state.fileRenderSignature = nextSignature;
+    resetVisibleItems();
+    state.currentPage = 1;
+  }
 
   const allFiltered = getFilteredFiles();
   fileCount.textContent = `${allFiltered.length} file(s)`;
@@ -525,8 +784,22 @@ function renderFiles() {
   }
 
   // Dynamic File card rendering
-  const { totalPages, pageFiles } = getPaginatedFiles(allFiltered);
-  renderPagination(totalPages, allFiltered.length);
+  let totalPages = 1;
+  let pageFiles = [];
+  if (state.viewMode === "grid") {
+    const minimumBatch = getAdaptiveBatchSize();
+    if (state.visibleCount < minimumBatch) {
+      state.visibleCount = minimumBatch;
+    }
+    const shown = Math.min(allFiltered.length, state.visibleCount);
+    pageFiles = allFiltered.slice(0, shown);
+    renderPagination(totalPages, allFiltered.length, shown);
+  } else {
+    const pageData = getPaginatedFiles(allFiltered);
+    totalPages = pageData.totalPages;
+    pageFiles = pageData.pageFiles;
+    renderPagination(totalPages, allFiltered.length, pageFiles.length);
+  }
 
   if (pageFiles.length === 0) {
     fileGrid.innerHTML = `
@@ -542,7 +815,7 @@ function renderFiles() {
   pageFiles.forEach((file) => {
     const card = document.createElement("article");
     const isChecked = state.selectedFileIDs.has(file.record_id);
-    card.className = `file-card ${isChecked ? "selected" : ""}`;
+    card.className = `file-card ${isChecked ? "selected" : ""} ${state.viewMode === "grid" ? "is-entering" : ""}`;
     card.setAttribute("data-record-id", file.record_id);
 
     const isTrashed = state.activeSection === "trash";
@@ -609,7 +882,11 @@ function renderFiles() {
                 TRASH_STORAGE_KEY,
                 JSON.stringify(Array.from(state.trashedFileIDs)),
               );
-              await reloadFiles();
+              invalidateSnapshotScope(
+                "files",
+                `${state.activeBot?.id || ""}:${state.activeChat?.chat_id || ""}`,
+              );
+              await reloadFiles({ force: true });
             });
             showToast("File permanently deleted", "success");
           } catch (err) {
@@ -628,7 +905,11 @@ function renderFiles() {
               method: "PATCH",
               body: JSON.stringify({ original_name: nextName.trim() }),
             });
-            await reloadFiles();
+            invalidateSnapshotScope(
+              "files",
+              `${state.activeBot?.id || ""}:${state.activeChat?.chat_id || ""}`,
+            );
+            await reloadFiles({ force: true });
           });
           showToast("File renamed successfully", "success");
         } catch (err) {
@@ -690,15 +971,39 @@ function clearSelection() {
 }
 
 // Pagination Controls
-function renderPagination(totalPages, totalItems) {
+function renderPagination(totalPages, totalItems, shownItems = 0) {
+  if (state.viewMode === "grid") {
+    if (paginationSummary) {
+      paginationSummary.textContent =
+        totalItems ?
+          `Showing ${shownItems} of ${totalItems} · Scroll to load more`
+        : "";
+    }
+    if (prevPageBtn) {
+      prevPageBtn.disabled = true;
+      prevPageBtn.textContent = "Prev";
+    }
+    if (nextPageBtn) {
+      nextPageBtn.textContent = "Load more";
+      nextPageBtn.disabled = shownItems >= totalItems;
+    }
+    return;
+  }
+
   if (paginationSummary) {
     paginationSummary.textContent =
       totalItems ?
         `Page ${state.currentPage} of ${totalPages} (${totalItems} items)`
       : "";
   }
-  if (prevPageBtn) prevPageBtn.disabled = state.currentPage <= 1;
-  if (nextPageBtn) nextPageBtn.disabled = state.currentPage >= totalPages;
+  if (prevPageBtn) {
+    prevPageBtn.textContent = "Prev";
+    prevPageBtn.disabled = state.currentPage <= 1;
+  }
+  if (nextPageBtn) {
+    nextPageBtn.textContent = "Next";
+    nextPageBtn.disabled = state.currentPage >= totalPages;
+  }
 }
 
 // Image Gallery Slider controls
@@ -867,7 +1172,11 @@ async function uploadSelectedFiles() {
     }
   }
 
-  await reloadFiles();
+  invalidateSnapshotScope(
+    "files",
+    `${state.activeBot?.id || ""}:${state.activeChat?.chat_id || ""}`,
+  );
+  await reloadFiles({ force: true });
   clearUploadSelection();
   uploadProgressPopup.classList.add("hidden");
 
@@ -1001,21 +1310,39 @@ async function selectChat(chat) {
   });
 }
 
-async function reloadFiles() {
+async function reloadFiles({ force = false } = {}) {
   if (!state.activeBot || !state.activeChat) return;
   return withLoading("Loading files...", async () => {
-    const payload = await api(
-      `/api/bots/${state.activeBot.id}/chats/${encodeURIComponent(state.activeChat.chat_id)}/files`,
-    );
-    state.files = unwrap(payload) || [];
+    const chatID = encodeURIComponent(state.activeChat.chat_id);
+    const data = await fetchWithSnapshotCache({
+      scope: "files",
+      suffix: `${state.activeBot.id}:${state.activeChat.chat_id}`,
+      ttlMs: CACHE_TTL_MS.files,
+      force,
+      loader: async () => {
+        const payload = await api(
+          `/api/bots/${state.activeBot.id}/chats/${chatID}/files`,
+        );
+        return unwrap(payload) || [];
+      },
+    });
+    state.files = data;
     renderFiles();
   });
 }
 
-async function loadBots() {
+async function loadBots({ force = false } = {}) {
   return withLoading("Loading connected bots...", async () => {
-    const payload = await api("/api/bots");
-    state.bots = unwrap(payload) || [];
+    const data = await fetchWithSnapshotCache({
+      scope: "bots",
+      ttlMs: CACHE_TTL_MS.bots,
+      force,
+      loader: async () => {
+        const payload = await api("/api/bots");
+        return unwrap(payload) || [];
+      },
+    });
+    state.bots = data;
     renderBots();
 
     if (state.bots.length) {
@@ -1035,11 +1362,20 @@ async function loadBots() {
   });
 }
 
-async function loadChats() {
+async function loadChats({ force = false } = {}) {
   if (!state.activeBot) return;
   return withLoading("Loading chats...", async () => {
-    const payload = await api(`/api/bots/${state.activeBot.id}/chats`);
-    state.chats = unwrap(payload) || [];
+    const data = await fetchWithSnapshotCache({
+      scope: "chats",
+      suffix: String(state.activeBot.id),
+      ttlMs: CACHE_TTL_MS.chats,
+      force,
+      loader: async () => {
+        const payload = await api(`/api/bots/${state.activeBot.id}/chats`);
+        return unwrap(payload) || [];
+      },
+    });
+    state.chats = data;
     renderChats();
   });
 }
@@ -1061,6 +1397,7 @@ function applyUser() {
 }
 
 function clearSession() {
+  const previousToken = state.token;
   state.token = "";
   state.user = null;
   state.bots = [];
@@ -1069,6 +1406,7 @@ function clearSession() {
   state.activeBot = null;
   state.activeChat = null;
   localStorage.removeItem(STORAGE_KEY);
+  clearSnapshotCacheForToken(previousToken);
 }
 
 // Unified Event Bindings
@@ -1266,7 +1604,9 @@ function bindEvents() {
     try {
       await withLoading("Syncing chats...", async () => {
         await api(`/api/bots/${state.activeBot.id}/sync`, { method: "POST" });
-        await loadChats();
+        invalidateSnapshotScope("chats", String(state.activeBot.id));
+        invalidateSnapshotScope("files", `${state.activeBot.id}:`);
+        await loadChats({ force: true });
       });
       showToast("Workspace synced successfully", "success");
     } catch (err) {
@@ -1276,7 +1616,7 @@ function bindEvents() {
 
   reloadFilesBtn.addEventListener("click", async () => {
     try {
-      await reloadFiles();
+      await reloadFiles({ force: true });
       showToast("Storage refreshed", "success");
     } catch (err) {
       showToast(err.message, "error");
@@ -1293,21 +1633,25 @@ function bindEvents() {
   // Search filter
   fileSearch.addEventListener("input", (e) => {
     state.search = e.target.value || "";
+    resetVisibleItems();
     state.currentPage = 1;
     renderFiles();
   });
 
   // Dates Range & Folder filters inputs
   dateFromFilter?.addEventListener("change", () => {
+    resetVisibleItems();
     state.currentPage = 1;
     renderFiles();
   });
   dateToFilter?.addEventListener("change", () => {
+    resetVisibleItems();
     state.currentPage = 1;
     renderFiles();
   });
   folderFilterInput?.addEventListener("input", (e) => {
     state.folderFilter = e.target.value || "";
+    resetVisibleItems();
     state.currentPage = 1;
     renderFiles();
   });
@@ -1315,6 +1659,7 @@ function bindEvents() {
   // Grid/List Modes switches
   gridViewBtn.addEventListener("click", () => {
     state.viewMode = "grid";
+    resetVisibleItems();
     gridViewBtn.classList.add("active");
     listViewBtn.classList.remove("active");
     renderFiles();
@@ -1328,10 +1673,14 @@ function bindEvents() {
 
   // Selection controls
   selectVisibleBtn.addEventListener("click", () => {
-    const visible = getFilteredFiles().slice(
-      (state.currentPage - 1) * state.pageSize,
-      state.currentPage * state.pageSize,
-    );
+    const allVisible = getFilteredFiles();
+    const visible =
+      state.viewMode === "grid" ?
+        allVisible.slice(0, state.visibleCount)
+      : allVisible.slice(
+          (state.currentPage - 1) * state.pageSize,
+          state.currentPage * state.pageSize,
+        );
     if (visible.length === 0) return;
     visible.forEach((f) => state.selectedFileIDs.add(f.record_id));
     renderSelectionSummary();
@@ -1418,15 +1767,46 @@ function bindEvents() {
 
   // Pagination clicks
   prevPageBtn.addEventListener("click", () => {
+    if (state.viewMode === "grid") return;
     if (state.currentPage > 1) {
       state.currentPage--;
       renderFiles();
     }
   });
   nextPageBtn.addEventListener("click", () => {
+    if (state.viewMode === "grid") {
+      const totalItems = getFilteredFiles().length;
+      if (loadMoreVisibleItems(totalItems)) {
+        renderFiles();
+      }
+      return;
+    }
     state.currentPage++;
     renderFiles();
   });
+
+  workspacePanel?.addEventListener("scroll", tryLoadMoreOnScroll, {
+    passive: true,
+  });
+  workspacePanel?.addEventListener("wheel", handleGridZoomWheel, {
+    passive: false,
+  });
+
+  let resizeTimer;
+  window.addEventListener(
+    "resize",
+    () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        const minimumBatch = getAdaptiveBatchSize();
+        if (state.visibleCount < minimumBatch) {
+          state.visibleCount = minimumBatch;
+        }
+        renderFiles();
+      }, 120);
+    },
+    { passive: true },
+  );
 
   // Modal closers
   document.querySelectorAll("[data-close-modal]").forEach((button) => {
@@ -1500,6 +1880,12 @@ function bindEvents() {
 
 // Main Bootstrap Loader
 async function bootstrap() {
+  if (!Number.isFinite(state.thumbnailScale)) {
+    state.thumbnailScale = 1;
+  }
+  state.thumbnailScale = clamp(state.thumbnailScale, 0.75, 1.6);
+  localStorage.setItem(THUMBNAIL_SCALE_KEY, String(state.thumbnailScale));
+
   bindEvents();
   setSidebarCollapsed(state.sidebarCollapsed);
   setViewSection("home");

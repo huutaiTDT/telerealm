@@ -31,6 +31,7 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+  --grid-thumb-scale: 1;
   
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -634,6 +635,7 @@ a {
   flex-direction: column;
   height: 100vh;
   overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 /* Top bar - Extremely Sleek */
@@ -985,9 +987,11 @@ a {
 
 /* Files Grid Layout - Premium visual cards */
 .files-grid {
+  --grid-thumb-scale: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(calc(220px * var(--grid-thumb-scale)), 1fr));
+  gap: calc(20px * var(--grid-thumb-scale));
+  transition: grid-template-columns 0.22s ease, gap 0.22s ease;
 }
 
 .file-card {
@@ -999,6 +1003,22 @@ a {
   display: flex;
   flex-direction: column;
   transition: var(--transition);
+  will-change: transform, opacity;
+}
+
+.file-card.is-entering {
+  animation: fileCardIn 0.28s ease;
+}
+
+@keyframes fileCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .file-card:hover {
@@ -1031,7 +1051,7 @@ a {
 /* Thumbnail block */
 .file-card .thumb {
   width: 100%;
-  height: 128px;
+  height: calc(128px * var(--grid-thumb-scale));
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
   display: flex;
@@ -1039,6 +1059,7 @@ a {
   justify-content: center;
   overflow: hidden;
   position: relative;
+  transition: height 0.22s ease;
 }
 
 .file-card .thumb img {
