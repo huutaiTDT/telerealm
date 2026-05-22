@@ -1,6 +1,6 @@
 /** @format */
 
-const STORAGE_KEY = "telerealm.sessionToken";
+const SESSION_STORAGE_KEY = "telerealm.sessionToken";
 const TRASH_STORAGE_KEY = "telerealm.trashedFileIDs";
 const THUMBNAIL_SCALE_KEY = "telerealm.thumbnailScale";
 const SNAPSHOT_CACHE_KEY = "telerealm.snapshotCache.v1";
@@ -12,7 +12,7 @@ const CACHE_TTL_MS = {
 };
 
 const state = {
-  token: localStorage.getItem(STORAGE_KEY) || "",
+  token: localStorage.getItem(SESSION_STORAGE_KEY) || "",
   user: null,
   bots: [],
   chats: [],
@@ -1368,7 +1368,7 @@ function clearSession() {
   state.files = [];
   state.activeBot = null;
   state.activeChat = null;
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(SESSION_STORAGE_KEY);
   clearSnapshotCacheForToken(previousToken);
 }
 
@@ -1399,7 +1399,7 @@ function bindEvents() {
         const payload = unwrap(res);
         state.token = payload.token;
         state.user = payload.user;
-        localStorage.setItem(STORAGE_KEY, state.token);
+        localStorage.setItem(SESSION_STORAGE_KEY, state.token);
         applyUser();
         appScreen.classList.remove("hidden");
         authScreen.classList.add("hidden");
@@ -1424,7 +1424,7 @@ function bindEvents() {
         const payload = unwrap(res);
         state.token = payload.token;
         state.user = payload.user;
-        localStorage.setItem(STORAGE_KEY, state.token);
+        localStorage.setItem(SESSION_STORAGE_KEY, state.token);
         applyUser();
         appScreen.classList.remove("hidden");
         authScreen.classList.add("hidden");

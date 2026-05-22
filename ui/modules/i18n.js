@@ -1,6 +1,6 @@
 /** @format */
 
-const STORAGE_KEY = "telerealm.locale";
+const LOCALE_STORAGE_KEY = "telerealm.locale";
 const DEFAULT_LOCALE = "vi";
 
 let translations = null;
@@ -140,13 +140,13 @@ const fallbackTranslations = {
 };
 
 function getLocale() {
-  const saved = localStorage.getItem(STORAGE_KEY);
+  const saved = localStorage.getItem(LOCALE_STORAGE_KEY);
   return saved === "en" ? "en" : DEFAULT_LOCALE;
 }
 
 function setLocale(locale) {
   const nextLocale = locale === "en" ? "en" : DEFAULT_LOCALE;
-  localStorage.setItem(STORAGE_KEY, nextLocale);
+  localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
   applyLocale(nextLocale);
 }
 
