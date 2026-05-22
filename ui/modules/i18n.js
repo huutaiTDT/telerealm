@@ -19,6 +19,10 @@ const fallbackTranslations = {
     "#navSearch span": { vi: "Tìm kiếm", en: "Search" },
     "#navNotifications span": { vi: "Thông báo", en: "Notifications" },
     "#sidebarWorkspacesLabel": { vi: "Không gian làm việc", en: "Workspaces" },
+    "#sidebarWorkspacesSectionLabel": {
+      vi: "Không gian làm việc",
+      en: "Workspaces",
+    },
     "#sidebarCategoriesLabel": { vi: "Danh mục", en: "Categories" },
     "#createBotToggle span": { vi: "Thêm bot token", en: "Add bot token" },
     "#btnSettings span": { vi: "Cài đặt", en: "Settings" },

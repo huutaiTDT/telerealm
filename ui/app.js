@@ -191,7 +191,12 @@ function setLoading(active, message) {
 
 function beginLoading(message) {
   loadingDepth += 1;
-  setLoading(true, message || "Processing request...");
+  const locale = window.TeleRealmI18n?.getLocale?.() || "vi";
+  setLoading(
+    true,
+    message ||
+      (locale === "vi" ? "Đang xử lý yêu cầu..." : "Processing request..."),
+  );
 }
 
 function endLoading() {
@@ -919,16 +924,18 @@ function renderPagination(totalPages, totalItems, shownItems = 0) {
 
   if (paginationSummary) {
     paginationSummary.textContent =
-      totalItems ?
-        `Page ${state.currentPage} of ${totalPages} (${totalItems} items)`
-      : "";
+      (window.TeleRealmI18n?.getLocale?.() || "vi") === "vi" ?
+        `Trang ${state.currentPage} / ${totalPages} (${totalItems} tệp)`
+      : `Page ${state.currentPage} of ${totalPages} (${totalItems} items)`;
   }
   if (prevPageBtn) {
-    prevPageBtn.textContent = "Prev";
+    prevPageBtn.textContent =
+      (window.TeleRealmI18n?.getLocale?.() || "vi") === "vi" ? "Trước" : "Prev";
     prevPageBtn.disabled = state.currentPage <= 1;
   }
   if (nextPageBtn) {
-    nextPageBtn.textContent = "Next";
+    nextPageBtn.textContent =
+      (window.TeleRealmI18n?.getLocale?.() || "vi") === "vi" ? "Sau" : "Next";
     nextPageBtn.disabled = state.currentPage >= totalPages;
   }
   renderPageNumbers(totalPages, state.currentPage);
@@ -1016,7 +1023,10 @@ function clearUploadSelection() {
 function updateUploadProgress(percent, file, index, total, detail) {
   uploadProgressPopup.classList.remove("hidden");
   if (uploadProgressLabel)
-    uploadProgressLabel.textContent = `Uploading ${index} of ${total}`;
+    uploadProgressLabel.textContent =
+      (window.TeleRealmI18n?.getLocale?.() || "vi") === "vi" ?
+        `Đang tải ${index} / ${total}`
+      : `Uploading ${index} of ${total}`;
   if (uploadProgressMeta) uploadProgressMeta.textContent = `${percent}%`;
   if (uploadProgressFill) uploadProgressFill.style.width = `${percent}%`;
   if (uploadProgressDetail)

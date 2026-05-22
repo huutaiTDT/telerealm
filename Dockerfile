@@ -28,6 +28,10 @@ RUN mkdir -p \
     /app/storage/multipart/files \
     /app/data
 
+# ==========================================
+# RUNTIME
+# ==========================================
+
 FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
@@ -36,6 +40,9 @@ COPY --from=builder --chown=nonroot:nonroot /app/server ./server
 COPY --from=builder --chown=nonroot:nonroot /app/ui ./ui
 COPY --from=builder --chown=nonroot:nonroot /app/storage ./storage
 COPY --from=builder --chown=nonroot:nonroot /app/data ./data
+
+# COPY .env
+COPY --from=builder --chown=nonroot:nonroot /app/.env ./.env
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt \
     /etc/ssl/certs/ca-certificates.crt
