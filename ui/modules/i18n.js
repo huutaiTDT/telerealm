@@ -56,6 +56,48 @@ const fallbackTranslations = {
     },
     "#previewTitle": { vi: "Xem trước", en: "Preview" },
     "#previewOpenLink": { vi: "Mở bản gốc", en: "Open original" },
+    "#btnSettings span": { vi: "Cài đặt", en: "Settings" },
+    "#btnHelp span": { vi: "Trợ giúp & hỗ trợ", en: "Help & support" },
+    "#themeToggle span": { vi: "Giao diện", en: "Theme" },
+    "#settingsModal h2": { vi: "Cài đặt", en: "Settings" },
+    "#settingsModal .settings-card:nth-of-type(1) h3": {
+      vi: "Lưu trữ TeleRealm Drive",
+      en: "TeleRealm Drive Storage",
+    },
+    "#settingsModal .settings-card:nth-of-type(1) p": {
+      vi: "Tệp được lưu trực tiếp trên hạ tầng đám mây an toàn của Telegram theo giới hạn cập nhật của bot.",
+      en: "Files are stored directly on Telegram's secured cloud architecture under your bot's updates limits.",
+    },
+    "#settingsModal .settings-card:nth-of-type(1) .pagination-summary": {
+      vi: "Đang dùng 1.2 GB trong không gian lưu trữ không giới hạn",
+      en: "Using 1.2 GB of Unlimited Storage",
+    },
+    "#settingsModal .settings-card:nth-of-type(2) h3": {
+      vi: "Thông tin tài khoản",
+      en: "Account Credentials",
+    },
+    "#settingsModal .settings-card:nth-of-type(2) label": {
+      vi: "Tên hiển thị",
+      en: "Display Name",
+    },
+    "#btnSaveSettings": { vi: "Lưu hồ sơ", en: "Save Profile" },
+    "#helpModal h2": { vi: "Trợ giúp & hỗ trợ", en: "Help & support" },
+    "#helpModal .settings-card:nth-of-type(1) h3": {
+      vi: "Cách kết nối bot?",
+      en: "How to connect bots?",
+    },
+    "#helpModal .settings-card:nth-of-type(1) p": {
+      vi: "1. Mở ứng dụng Telegram và chat với @BotFather. 2. Gửi lệnh /newbot và đặt tên cho bot. 3. Sao chép Bot API Token và dán vào mục Thêm bot ở đây. 4. Thêm bot vào nhóm hoặc nhắn cho bot, sau đó bấm Tải chat.",
+      en: "1. Open Telegram app and chat with @BotFather. 2. Send /newbot command and name your bot. 3. Copy the Bot API Token key and paste it via Add Bot here. 4. Add your bot to a group chat or message it, then click Load chats.",
+    },
+    "#helpModal .settings-card:nth-of-type(2) h3": {
+      vi: "Cách duyệt thư mục?",
+      en: "How to browse Folders?",
+    },
+    "#helpModal .settings-card:nth-of-type(2) p": {
+      vi: "Khi tải tệp lên, chỉ cần đặt tên thẻ thư mục (ví dụ: Travel 2026). Hệ thống sẽ tự tạo thư mục cao cấp và sắp xếp lại cấu trúc bảng điều khiển của bạn.",
+      en: "When uploading files, simply specify a folder tag name (e.g. Travel 2026). The system will automatically build premium folders and organize your dashboard hierarchy.",
+    },
     "#loginForm .primary-btn": { vi: "Đăng nhập", en: "Sign in" },
     "#registerForm .primary-btn": { vi: "Tạo tài khoản", en: "Create account" },
     ".auth-tabs .tab[data-auth-tab='login']": { vi: "Đăng nhập", en: "Login" },
@@ -68,10 +110,12 @@ const fallbackTranslations = {
       en: "Register an account, connect a bot token, load chats, and manage file storage in a Drive-like workspace.",
     },
     "#languageToggleBtn": { vi: "VI | EN", en: "EN | VI" },
-    "#settingsModal h2": { vi: "Cài đặt", en: "Settings" },
-    "#helpModal h2": { vi: "Trợ giúp & hỗ trợ", en: "Help & support" },
     "#botModal h2": { vi: "Kết nối Telegram bot", en: "Connect Telegram bot" },
     "#fileModal h2": { vi: "Tải tệp lên", en: "Upload file" },
+    "#fileModal .file-dropzone strong": {
+      vi: "Kéo tệp vào đây hoặc chọn nhiều tệp",
+      en: "Drag files here or choose multiple files",
+    },
     "#btnSaveSettings": { vi: "Lưu hồ sơ", en: "Save Profile" },
   },
   attributes: {
@@ -154,7 +198,7 @@ function updateLanguageToggle(locale) {
   button.setAttribute("aria-pressed", locale === "en" ? "true" : "false");
 }
 
-export function applyLocale(locale = getLocale()) {
+function applyLocale(locale = getLocale()) {
   const bundle = getBundle();
   const nextLocale = bundle.locales?.[locale] ? locale : DEFAULT_LOCALE;
 

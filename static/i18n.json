@@ -1,0 +1,414 @@
+{
+  "defaultLocale": "vi",
+  "locales": {
+    "vi": "Tiếng Việt",
+    "en": "English"
+  },
+  "common": {
+    "text": {
+      "#staticLanguageToggleBtn": {
+        "vi": "VI | EN",
+        "en": "EN | VI"
+      }
+    },
+    "attributes": {
+      "#staticLanguageToggleBtn": {
+        "title": {
+          "vi": "Chuyển sang English",
+          "en": "Chuyển sang Tiếng Việt"
+        },
+        "aria-label": {
+          "vi": "Chuyển sang English",
+          "en": "Chuyển sang Tiếng Việt"
+        },
+        "aria-pressed": {
+          "vi": "false",
+          "en": "true"
+        }
+      }
+    }
+  },
+  "pages": {
+    "/": {
+      "text": {
+        "header .main-nav a[href='#features']": {
+          "vi": "Tính năng",
+          "en": "Features"
+        },
+        "header .main-nav a[href='/upload']": {
+          "vi": "Tải lên",
+          "en": "Upload"
+        },
+        "header .main-nav a[href='/public-api']": {
+          "vi": "API công khai",
+          "en": "Public API"
+        },
+        "header .main-nav a[href='/demo']": {
+          "vi": "Trình diễn",
+          "en": "Demo"
+        },
+        "header .main-nav a[href='/docs']": {
+          "vi": "Tài liệu",
+          "en": "Docs"
+        },
+        "header .main-nav a[href='#faq']": {
+          "vi": "Hỏi đáp",
+          "en": "FAQ"
+        },
+        "header .nav-cta": {
+          "vi": "Thử tải lên",
+          "en": "Try Upload"
+        },
+        ".hero-copy .eyebrow": {
+          "vi": "Học tập trực tuyến nay dễ hơn",
+          "en": "Online learning is easier now"
+        },
+        ".hero-copy h1": {
+          "vi": "Xây dựng lớp CDN đẹp mắt trên nền lưu trữ Telegram",
+          "en": "Build a beautiful CDN layer on top of Telegram storage"
+        },
+        ".hero-copy .hero-subtitle": {
+          "vi": "Tải lên một lần, chia sẻ liên kết an toàn ngay lập tức và quản lý phân phối tệp từ một bảng điều khiển gọn gàng.",
+          "en": "Upload once, share secure links instantly, and manage file delivery from one clean dashboard."
+        },
+        ".hero-copy .hero-actions a.btn-primary": {
+          "vi": "Bắt đầu",
+          "en": "Get Started"
+        },
+        ".hero-copy .hero-actions a.btn-ghost": {
+          "vi": "Xem cách hoạt động",
+          "en": "Watch How It Works"
+        },
+        ".hero-stats article:nth-child(1) span": {
+          "vi": "Tệp đã phục vụ",
+          "en": "Files served"
+        },
+        ".hero-stats article:nth-child(2) span": {
+          "vi": "Liên kết đang hoạt động",
+          "en": "Active links"
+        },
+        ".hero-stats article:nth-child(3) span": {
+          "vi": "Tính sẵn sàng",
+          "en": "Availability"
+        },
+        ".hero-visual .visual-main p": {
+          "vi": "Phân phối tệp an toàn",
+          "en": "Secure file delivery"
+        },
+        ".hero-visual .visual-main h3": {
+          "vi": "Tạo liên kết chia sẻ tức thì",
+          "en": "Instant share link generated"
+        },
+        ".hero-visual .visual-float.float-one": {
+          "vi": "Sẵn sàng API",
+          "en": "API Ready"
+        },
+        ".hero-visual .visual-float.float-two": {
+          "vi": "An toàn token",
+          "en": "Token Safe"
+        },
+        ".trusted p": {
+          "vi": "Được tin dùng bởi các đội ngũ cần phân phối nội dung nhẹ",
+          "en": "Trusted by teams integrating lightweight media delivery"
+        },
+        "#features .section-head .eyebrow": {
+          "vi": "Phần mềm đám mây tất cả trong một",
+          "en": "All-In-One Cloud Software"
+        },
+        "#features .section-head h2": {
+          "vi": "Mọi thứ bạn cần cho CDN dựa trên Telegram",
+          "en": "Everything You Need for Telegram-Based CDN"
+        },
+        ".split-copy .eyebrow": {
+          "vi": "Trong lớp học vật lý, bạn có thể làm điều đó ở đây",
+          "en": "In Physical Classrooms, You Can Do It Here"
+        },
+        ".split-copy h2": {
+          "vi": "Trao cho người học khả năng truy cập nhanh và ổn định vào tài nguyên khóa học",
+          "en": "Give Learners Fast, Reliable Access to Course Assets"
+        },
+        ".split-copy p": {
+          "vi": "TeleRealm biến lưu trữ bot Telegram thành một dịch vụ CDN thực dụng cho tài liệu, ảnh và tài liệu khóa học tải xuống.",
+          "en": "TeleRealm converts Telegram bot storage into a practical CDN service for docs, images, and downloadable course materials."
+        },
+        ".split-copy .text-link": {
+          "vi": "Mở khu vực tải lên",
+          "en": "Open upload workspace"
+        },
+        "#studio .section-head .eyebrow": {
+          "vi": "Khu vực làm việc chuyên dụng",
+          "en": "Dedicated Workspace"
+        },
+        "#studio .section-head h2": {
+          "vi": "Dùng một trang riêng cho thao tác tải lên",
+          "en": "Use A Separate Page For Upload Operations"
+        },
+        "#studio .workspace-subtitle": {
+          "vi": "Trang đích giữ gọn cho phần giới thiệu sản phẩm. Toàn bộ thao tác tải lên, cấu hình bot cục bộ và lịch sử liên kết cục bộ đều nằm ở trang làm việc riêng.",
+          "en": "Landing page stays clean for product overview. All upload actions, local bot config, and local link history now live in a dedicated workspace page."
+        },
+        "#studio .workspace-card:nth-of-type(1) h3": {
+          "vi": "Khu vực tải lên",
+          "en": "Upload Workspace"
+        },
+        "#studio .workspace-card:nth-of-type(1) p": {
+          "vi": "Mở một trang tập trung được xây dựng riêng cho kéo-thả, lưu cấu hình cục bộ và quản lý liên kết an toàn.",
+          "en": "Open a focused page built specifically for drag-and-drop uploads, local config storage, and secure link management."
+        },
+        "#studio .workspace-card:nth-of-type(1) a": {
+          "vi": "Mở /upload",
+          "en": "Open /upload"
+        },
+        "#studio .workspace-card:nth-of-type(2) h3": {
+          "vi": "Những gì được chuyển sang đó",
+          "en": "What Moves There"
+        },
+        "#studio .workspace-card:nth-of-type(2) p": {
+          "vi": "Bot token, chat id, xem trước ảnh đã tải lên, liên kết an toàn gần đây và cảnh báo lưu cục bộ đều được xử lý tách biệt khỏi trang đích này.",
+          "en": "Bot token, chat id, uploaded image previews, recent secure links, and local-storage warning are all handled separately from this landing page."
+        },
+        "#studio .workspace-card:nth-of-type(2) a": {
+          "vi": "Đi tới trang tải lên",
+          "en": "Go To Upload Page"
+        },
+        "#faq .section-head .eyebrow": {
+          "vi": "Câu hỏi thường gặp",
+          "en": "Frequently Asked Questions"
+        },
+        "#faq .section-head h2": {
+          "vi": "Mọi thứ bạn cần để bắt đầu nhanh",
+          "en": "Everything You Need to Start Fast"
+        },
+        "#faq .faq-list article:nth-child(1) h3": {
+          "vi": "Tải lên hoạt động thế nào?",
+          "en": "How does upload work?"
+        },
+        "#faq .faq-list article:nth-child(1) p": {
+          "vi": "Các thao tác tải lên hiện diễn ra trên trang /upload chuyên dụng, nơi TeleRealm gửi tệp tới chat bot của bạn và trả về liên kết tải xuống an toàn.",
+          "en": "Upload actions now happen on the dedicated /upload page, where TeleRealm sends files to your bot chat and returns secure download links."
+        },
+        "#faq .faq-list article:nth-child(2) h3": {
+          "vi": "Tôi có thể dùng frontend riêng không?",
+          "en": "Can I use my own frontend?"
+        },
+        "#faq .faq-list article:nth-child(2) p": {
+          "vi": "Có. Mọi tính năng đều có sẵn qua API, nên bạn có thể tích hợp với bất kỳ client nào.",
+          "en": "Yes. Every feature is available by API, so you can integrate with any client."
+        },
+        "#faq .faq-list article:nth-child(3) h3": {
+          "vi": "Bot token có an toàn không?",
+          "en": "Is the bot token safe?"
+        },
+        "#faq .faq-list article:nth-child(3) p": {
+          "vi": "Yêu cầu phía client đi qua bearer auth và các liên kết được mã hóa trước khi chia sẻ. Lưu cục bộ trên trang tải lên chỉ nên dùng trên thiết bị đáng tin cậy.",
+          "en": "Client requests pass through bearer auth and links are encrypted before sharing. Local storage on the upload page should only be used on trusted devices."
+        },
+        "footer strong": {
+          "vi": "TeleRealm CDN",
+          "en": "TeleRealm CDN"
+        },
+        "footer p": {
+          "vi": "Phân phối nội dung bằng Telegram cho các đội ngũ tinh gọn.",
+          "en": "Telegram-powered content delivery for lean teams."
+        }
+      }
+    },
+    "/upload": {
+      "text": {
+        ".upload-topbar__actions a[href='/public-api']": {
+          "vi": "API công khai",
+          "en": "Public API"
+        },
+        ".upload-topbar__actions a[href='/demo']": {
+          "vi": "Trình diễn",
+          "en": "Demo"
+        },
+        ".upload-topbar__actions a[href='/docs']": {
+          "vi": "Tài liệu",
+          "en": "Docs"
+        },
+        ".upload-topbar__actions a[href='/']": {
+          "vi": "Về trang chủ",
+          "en": "Back To Landing"
+        }
+      }
+    },
+    "/demo": {
+      "text": {
+        ".main-nav a[href='/public-api']": {
+          "vi": "API công khai",
+          "en": "Public API"
+        },
+        ".main-nav a[href='/upload']": {
+          "vi": "Tải lên",
+          "en": "Upload"
+        },
+        ".main-nav a[href='/docs']": {
+          "vi": "Tài liệu",
+          "en": "Docs"
+        },
+        ".nav-cta": {
+          "vi": "Thử demo",
+          "en": "Try Demo"
+        },
+        ".hero-copy .eyebrow": {
+          "vi": "Trang demo",
+          "en": "Demo Page"
+        },
+        ".hero-copy h1": {
+          "vi": "Vì sao TeleRealm hữu ích cho phân phối kiểu CDN nhanh",
+          "en": "Why TeleRealm is useful for fast CDN-style delivery"
+        },
+        ".hero-copy .hero-subtitle": {
+          "vi": "Trang demo này nêu bật các lợi ích thực tế của việc dùng Telegram như một lớp phân phối tệp dựa trên lưu trữ cho các sản phẩm nhẹ.",
+          "en": "This demo page highlights the practical advantages of using Telegram as a storage-backed file delivery layer for lightweight products."
+        },
+        ".section .section-head .eyebrow": {
+          "vi": "Lợi ích",
+          "en": "Benefits"
+        },
+        ".section .section-head h2": {
+          "vi": "Những gì các đội ngũ nhận được từ TeleRealm",
+          "en": "What teams gain from TeleRealm"
+        },
+        ".faq-list article:nth-child(1) h3": {
+          "vi": "Chi phí khởi đầu thấp",
+          "en": "Low barrier to entry"
+        },
+        ".faq-list article:nth-child(1) p": {
+          "vi": "Bạn có thể bắt đầu chỉ với một bot token Telegram và một chat ID.",
+          "en": "You can start with only a Telegram bot token and a chat ID."
+        },
+        ".faq-list article:nth-child(2) h3": {
+          "vi": "Khu vực tải lên trên trình duyệt",
+          "en": "Browser-based upload workspace"
+        },
+        ".faq-list article:nth-child(2) p": {
+          "vi": "Người dùng không chuyên có thể tải tệp lên trên một trang riêng mà không cần Postman.",
+          "en": "Non-technical users can upload files on a dedicated page without Postman."
+        },
+        ".faq-list article:nth-child(3) h3": {
+          "vi": "Tùy chọn API công khai",
+          "en": "Public API option"
+        },
+        ".faq-list article:nth-child(3) p": {
+          "vi": "Nhà phát triển có thể tích hợp trực tiếp qua các endpoint theo đường dẫn cho các trường hợp sử dụng đơn giản.",
+          "en": "Developers can integrate directly through path-based endpoints for simple use cases."
+        },
+        ".faq-list article:nth-child(4) h3": {
+          "vi": "Lớp chuyển tiếp an toàn",
+          "en": "Secure indirection"
+        },
+        ".faq-list article:nth-child(4) p": {
+          "vi": "Các liên kết tải xuống được bọc trong route an toàn của TeleRealm thay vì lộ đường dẫn tệp Telegram thô.",
+          "en": "Download links are wrapped in TeleRealm secure routes instead of exposing raw Telegram file paths."
+        }
+      }
+    },
+    "/public-api": {
+      "text": {
+        ".main-nav a[href='/upload']": { "vi": "Tải lên", "en": "Upload" },
+        ".main-nav a[href='/demo']": { "vi": "Trình diễn", "en": "Demo" },
+        ".main-nav a[href='/docs']": { "vi": "Tài liệu", "en": "Docs" },
+        ".nav-cta": { "vi": "Tài liệu API", "en": "API Docs" },
+        ".hero-copy .eyebrow": {
+          "vi": "Tích hợp công khai",
+          "en": "Public Integration"
+        },
+        ".hero-copy h1": {
+          "vi": "Dùng endpoint công khai theo đường dẫn mà không cần Authorization header",
+          "en": "Use path-based public endpoints without Authorization headers"
+        },
+        ".hero-copy .hero-subtitle": {
+          "vi": "Tích hợp TeleRealm bằng mẫu URL trực tiếp như /link/{botToken}/{chatID} cho thao tác tải lên, liệt kê, lấy, cập nhật và xoá bản ghi.",
+          "en": "Integrate TeleRealm with a direct URL pattern such as /link/{botToken}/{chatID} for upload, list, get, update, and delete record operations."
+        },
+        ".hero-actions a.btn-primary": {
+          "vi": "Mở tài liệu",
+          "en": "Open Documentation"
+        },
+        ".hero-actions a.btn-ghost": {
+          "vi": "Xem lợi ích demo",
+          "en": "View Demo Benefits"
+        },
+        ".code-card .eyebrow": { "vi": "Mẫu cơ bản", "en": "Base Pattern" },
+        ".section .section-head .eyebrow": {
+          "vi": "Luồng tích hợp",
+          "en": "Integration Flow"
+        },
+        ".section .section-head h2": {
+          "vi": "Cách người dùng tích hợp API công khai",
+          "en": "How users integrate the public API"
+        },
+        ".feature-grid article:nth-child(1) h3": {
+          "vi": "1. Chuẩn bị bot token",
+          "en": "1. Prepare bot token"
+        },
+        ".feature-grid article:nth-child(1) p": {
+          "vi": "Tạo bot với BotFather và đưa token vào tham số đường dẫn.",
+          "en": "Create a bot with BotFather and copy the token into the path parameter."
+        },
+        ".feature-grid article:nth-child(2) h3": {
+          "vi": "2. Chọn chat ID",
+          "en": "2. Choose chat ID"
+        },
+        ".feature-grid article:nth-child(2) p": {
+          "vi": "Dùng ID chat riêng, nhóm hoặc kênh nơi bot có thể đăng tệp.",
+          "en": "Use your private chat, group, or channel ID where the bot can post files."
+        },
+        ".feature-grid article:nth-child(3) h3": {
+          "vi": "3. Gọi endpoint CRUD",
+          "en": "3. Call CRUD endpoints"
+        },
+        ".feature-grid article:nth-child(3) p": {
+          "vi": "Tải tệp lên, đọc bản ghi, cập nhật metadata và xoá bản ghi theo record ID.",
+          "en": "Upload files, read records, update metadata, and delete records by record ID."
+        }
+      }
+    },
+    "/docs": {
+      "text": {
+        ".main-nav a[href='/public-api']": {
+          "vi": "API công khai",
+          "en": "Public API"
+        },
+        ".main-nav a[href='/demo']": { "vi": "Trình diễn", "en": "Demo" },
+        ".main-nav a[href='/upload']": { "vi": "Tải lên", "en": "Upload" },
+        ".nav-cta": { "vi": "API công khai", "en": "Public API" },
+        ".hero-copy .eyebrow": {
+          "vi": "Tài liệu API",
+          "en": "API Documentation"
+        },
+        ".hero-copy h1": {
+          "vi": "Tích hợp API được bảo vệ và công khai /link/{botToken}/{chatID}",
+          "en": "Protected API and public /link/{botToken}/{chatID} integration"
+        },
+        ".hero-copy .hero-subtitle": {
+          "vi": "TeleRealm hỗ trợ cả endpoint được bảo vệ bằng bearer token và API công khai theo đường dẫn cho CRUD bản ghi tệp theo phạm vi.",
+          "en": "TeleRealm supports both bearer-token protected endpoints and a path-based public API for scoped CRUD file records."
+        },
+        ".code-card .eyebrow": { "vi": "Mẹo", "en": "Tip" },
+        ".section.docs-layout .docs-card:nth-child(1) h2": {
+          "vi": "API được bảo vệ",
+          "en": "Protected API"
+        },
+        ".section.docs-layout .docs-card:nth-child(2) h2": {
+          "vi": "API CRUD công khai",
+          "en": "Public CRUD API"
+        },
+        ".section.docs-layout .docs-card:nth-child(3) h2": {
+          "vi": "Ví dụ tải lên",
+          "en": "Upload Example"
+        },
+        ".section.docs-layout .docs-card:nth-child(4) h2": {
+          "vi": "Ví dụ cập nhật",
+          "en": "Update Example"
+        },
+        ".section.docs-layout .docs-card:nth-child(5) h2": {
+          "vi": "Hành vi xoá",
+          "en": "Delete Behavior"
+        }
+      }
+    }
+  }
+}

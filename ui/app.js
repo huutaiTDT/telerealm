@@ -163,6 +163,18 @@ function unwrap(response) {
   return response?.data ?? response;
 }
 
+function normalizeCollection(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  if (Array.isArray(value.items)) return value.items;
+  if (Array.isArray(value.results)) return value.results;
+  if (Array.isArray(value.files)) return value.files;
+  if (Array.isArray(value.chats)) return value.chats;
+  if (Array.isArray(value.bots)) return value.bots;
+  if (Array.isArray(value.data)) return value.data;
+  return [];
+}
+
 // Toast Alert System
 function showToast(message, tone = "") {
   if (!toast) return;
@@ -1266,7 +1278,7 @@ async function reloadFiles({ force = false } = {}) {
         return unwrap(payload) || [];
       },
     });
-    state.files = data;
+    state.files = normalizeCollection(data);
     renderFiles();
   });
 }
@@ -1282,7 +1294,7 @@ async function loadBots({ force = false } = {}) {
         return unwrap(payload) || [];
       },
     });
-    state.bots = data;
+    state.bots = normalizeCollection(data);
     renderBots();
 
     if (state.bots.length) {
@@ -1315,7 +1327,7 @@ async function loadChats({ force = false } = {}) {
         return unwrap(payload) || [];
       },
     });
-    state.chats = data;
+    state.chats = normalizeCollection(data);
     renderChats();
   });
 }
