@@ -22,6 +22,13 @@ jobs:
       - name: Create .env file
         run: |
           cat <<EOF > .env
+          TELEGRAM_MAX_UPLOAD_MB='2048'
+          DB_HOST='103.216.118.90'
+          DB_PORT='5432'
+          DB_USERNAME='nguyetheli'
+          DB_PASSWORD='nguyetheli12042003@'
+          DB_DATABASE='tele-storage'
+          DB_LOGGING='false'
           EOF
 
       - name: Build Docker image

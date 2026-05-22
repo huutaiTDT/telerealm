@@ -139,7 +139,7 @@
                 <rect width="7" height="9" x="14" y="12" rx="1" />
                 <rect width="7" height="5" x="3" y="16" rx="1" />
               </svg>
-              <span>Workspaces</span>
+              <span id="sidebarWorkspacesLabel">Workspaces</span>
             </button>
             <button id="navSearch" class="drive-nav__item" type="button">
               <svg
@@ -180,7 +180,7 @@
           <!-- Workspaces section mapping active chats -->
           <div class="sidebar-section">
             <div class="sidebar-section-header">
-              <span>Workspaces</span>
+              <span id="sidebarWorkspacesSectionLabel">Workspaces</span>
               <svg
                 id="toggleWorkspacesSection"
                 width="10"
@@ -219,7 +219,7 @@
           <!-- Categories filter section -->
           <div class="sidebar-section">
             <div class="sidebar-section-header">
-              <span>Categories</span>
+              <span id="sidebarCategoriesLabel">Categories</span>
               <svg
                 id="toggleCategoriesSection"
                 width="10"
@@ -441,6 +441,14 @@
                 </svg>
                 Upload file
               </button>
+              <button
+                id="languageToggleBtn"
+                class="ghost-btn"
+                type="button"
+                aria-label="Switch language"
+                title="Switch language">
+                VI | EN
+              </button>
               <div id="userBadge" class="user-badge">
                 <div class="avatar" id="avatarBadge">C</div>
                 <span id="userBadgeName">Cody</span>
@@ -543,9 +551,22 @@
                 Delete selected
               </button>
 
-              <div style="margin-left: auto; display: flex; align-items: center; gap: 16px;">
+              <div
+                style="
+                  margin-left: auto;
+                  display: flex;
+                  align-items: center;
+                  gap: 16px;
+                ">
                 <!-- Card/Row Size Slider -->
-                <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted);">
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13px;
+                    color: var(--text-muted);
+                  ">
                   <span>Size:</span>
                   <input
                     id="sizeSlider"
@@ -554,8 +575,13 @@
                     max="1.6"
                     step="0.05"
                     value="1.0"
-                    style="width: 80px; height: 4px; border-radius: 99px; accent-color: var(--primary); cursor: pointer;"
-                  />
+                    style="
+                      width: 80px;
+                      height: 4px;
+                      border-radius: 99px;
+                      accent-color: var(--primary);
+                      cursor: pointer;
+                    " />
                 </div>
 
                 <div class="view-toggle" role="group" aria-label="File view">
@@ -591,11 +617,30 @@
                 </button>
               </div>
 
-              <div class="pagination-controls" style="display: flex; align-items: center; gap: 12px;">
+              <div
+                class="pagination-controls"
+                style="display: flex; align-items: center; gap: 12px">
                 <!-- Page Size Selector -->
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted);">
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 13px;
+                    color: var(--text-muted);
+                  ">
                   <span>Show:</span>
-                  <select id="pageSizeSelector" style="padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 12.5px; cursor: pointer;">
+                  <select
+                    id="pageSizeSelector"
+                    style="
+                      padding: 4px 8px;
+                      border-radius: var(--radius-sm);
+                      border: 1px solid var(--border-color);
+                      background: var(--bg-card);
+                      color: var(--text-main);
+                      font-size: 12.5px;
+                      cursor: pointer;
+                    ">
                     <option value="4">4</option>
                     <option value="8" selected>8</option>
                     <option value="16">16</option>
@@ -615,7 +660,9 @@
                 </button>
 
                 <!-- Page numbers container -->
-                <div id="pageNumbersContainer" style="display: flex; align-items: center; gap: 4px;"></div>
+                <div
+                  id="pageNumbersContainer"
+                  style="display: flex; align-items: center; gap: 4px"></div>
 
                 <button
                   id="nextPageBtn"
@@ -915,6 +962,7 @@
       </div>
     </div>
 
+    <script src="/ui/modules/i18n.js"></script>
     <script src="/ui/app.js"></script>
   </body>
 </html>

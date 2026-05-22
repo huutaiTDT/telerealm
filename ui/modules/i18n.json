@@ -1,0 +1,203 @@
+{
+  "defaultLocale": "vi",
+  "locales": {
+    "vi": "Tiếng Việt",
+    "en": "English"
+  },
+  "text": {
+    "#navHome span": {
+      "vi": "Trang chủ",
+      "en": "Home"
+    },
+    "#navWorkspaces span": {
+      "vi": "Không gian làm việc",
+      "en": "Workspaces"
+    },
+    "#navSearch span": {
+      "vi": "Tìm kiếm",
+      "en": "Search"
+    },
+    "#navNotifications span": {
+      "vi": "Thông báo",
+      "en": "Notifications"
+    },
+    "#sidebarWorkspacesLabel": {
+      "vi": "Không gian làm việc",
+      "en": "Workspaces"
+    },
+    "#sidebarCategoriesLabel": {
+      "vi": "Danh mục",
+      "en": "Categories"
+    },
+    "#createBotToggle span": {
+      "vi": "Thêm bot token",
+      "en": "Add bot token"
+    },
+    "#btnSettings span": {
+      "vi": "Cài đặt",
+      "en": "Settings"
+    },
+    "#btnHelp span": {
+      "vi": "Trợ giúp & hỗ trợ",
+      "en": "Help & support"
+    },
+    "#themeToggle span": {
+      "vi": "Giao diện",
+      "en": "Theme"
+    },
+    "#uploadBtn": {
+      "vi": "Tải tệp lên",
+      "en": "Upload file"
+    },
+    "#backBtn": {
+      "vi": "Quay lại",
+      "en": "Back"
+    },
+    "#topSectionLabel": {
+      "vi": "Không gian làm việc",
+      "en": "Workspaces"
+    },
+    "#workspaceTitle": {
+      "vi": "Chọn bot và chat",
+      "en": "Select a bot and chat"
+    },
+    "#workspaceSub": {
+      "vi": "Chọn bot, đồng bộ chat, rồi chọn một chat để xem kho tệp.",
+      "en": "Pick a bot, sync chats, then choose one chat to view file storage."
+    },
+    "#syncChatsBtn": {
+      "vi": "Tải chat",
+      "en": "Load chats"
+    },
+    "#reloadFilesBtn": {
+      "vi": "Tải lại tệp",
+      "en": "Reload files"
+    },
+    "#selectVisibleBtn": {
+      "vi": "Chọn trang hiện tại",
+      "en": "Select visible"
+    },
+    "#gridViewBtn": {
+      "vi": "Lưới",
+      "en": "Grid"
+    },
+    "#listViewBtn": {
+      "vi": "Danh sách",
+      "en": "List"
+    },
+    "#clearSelectionBtn": {
+      "vi": "Bỏ chọn",
+      "en": "Clear selection"
+    },
+    "#bulkDownloadBtn": {
+      "vi": "Tải xuống",
+      "en": "Download"
+    },
+    "#bulkFolderBtn": {
+      "vi": "Đổi thư mục",
+      "en": "Move folder"
+    },
+    "#bulkDeleteBtn": {
+      "vi": "Xoá",
+      "en": "Delete"
+    },
+    "#loadingText": {
+      "vi": "Đang xử lý yêu cầu...",
+      "en": "Processing request..."
+    },
+    "#uploadProgressLabel": {
+      "vi": "Đang tải tệp",
+      "en": "Uploading files"
+    },
+    "#uploadProgressDetail": {
+      "vi": "Đang chuẩn bị tệp...",
+      "en": "Preparing files..."
+    },
+    "#previewTitle": {
+      "vi": "Xem trước",
+      "en": "Preview"
+    },
+    "#previewOpenLink": {
+      "vi": "Mở bản gốc",
+      "en": "Open original"
+    },
+    "#loginForm .primary-btn": {
+      "vi": "Đăng nhập",
+      "en": "Sign in"
+    },
+    "#registerForm .primary-btn": {
+      "vi": "Tạo tài khoản",
+      "en": "Create account"
+    },
+    ".auth-tabs .tab[data-auth-tab='login']": {
+      "vi": "Đăng nhập",
+      "en": "Login"
+    },
+    ".auth-tabs .tab[data-auth-tab='register']": {
+      "vi": "Đăng ký",
+      "en": "Register"
+    },
+    ".auth-card .lede": {
+      "vi": "Đăng ký tài khoản, kết nối bot token, tải chat và quản lý tệp trong một không gian kiểu Drive.",
+      "en": "Register an account, connect a bot token, load chats, and manage file storage in a Drive-like workspace."
+    },
+    "#languageToggleBtn": {
+      "vi": "VI | EN",
+      "en": "EN | VI"
+    },
+    "#settingsModal h2": {
+      "vi": "Cài đặt",
+      "en": "Settings"
+    },
+    "#helpModal h2": {
+      "vi": "Trợ giúp & hỗ trợ",
+      "en": "Help & support"
+    },
+    "#botModal h2": {
+      "vi": "Kết nối Telegram bot",
+      "en": "Connect Telegram bot"
+    },
+    "#fileModal h2": {
+      "vi": "Tải tệp lên",
+      "en": "Upload file"
+    },
+    "#btnSaveSettings": {
+      "vi": "Lưu hồ sơ",
+      "en": "Save Profile"
+    }
+  },
+  "attributes": {
+    "#sidebarToggle": {
+      "title": {
+        "vi": "Thu gọn hoặc mở rộng thanh bên",
+        "en": "Toggle sidebar"
+      },
+      "aria-label": {
+        "vi": "Thu gọn hoặc mở rộng thanh bên",
+        "en": "Toggle sidebar"
+      }
+    },
+    "#fileSearch": {
+      "placeholder": {
+        "vi": "Tìm tệp...",
+        "en": "Search files..."
+      },
+      "aria-label": {
+        "vi": "Tìm tệp",
+        "en": "Search files"
+      }
+    },
+    "#folderFilter": {
+      "placeholder": {
+        "vi": "Lọc thư mục...",
+        "en": "Filter folder..."
+      }
+    },
+    "#settingsUserName": {
+      "value": {
+        "vi": "Cody",
+        "en": "Cody"
+      }
+    }
+  }
+}
