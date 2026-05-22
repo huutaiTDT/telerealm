@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"telerealm/models"
@@ -156,8 +157,42 @@ func (h *Handlers) ListFiles(c *gin.Context) {
 	userID := c.MustGet("user_id").(string)
 	botID := c.Param("botID")
 	chatID := c.Param("chatID")
-	files := normalizeFileRecordsForResponse(c, h.service.ListFiles(userID, botID, chatID))
-	c.JSON(http.StatusOK, models.Response{Success: true, Message: "Files loaded", Data: files})
+
+	// pagination params
+	pageStr := c.DefaultQuery("page", "1")
+	sizeStr := c.DefaultQuery("size", "8")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil || size < 1 {
+		size = 8
+	}
+	offset := (page - 1) * size
+
+	total, err := h.service.CountFiles(userID, botID, chatID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Response{Success: false, Message: "failed to count files", Data: nil})
+		return
+	}
+	files := normalizeFileRecordsForResponse(c, func() []models.FileRecord {
+		f, _ := h.service.ListFilesPaginated(userID, botID, chatID, offset, size)
+		return f
+	}())
+	totalPages := 1
+	if size > 0 {
+		if total%size == 0 {
+			totalPages = total / size
+		} else {
+			totalPages = total/size + 1
+		}
+	}
+
+	c.JSON(http.StatusOK, models.Response{Success: true, Message: "Files loaded", Data: map[string]interface{}{
+		"files": files,
+		"meta": map[string]int{"total": total, "page": page, "size": size, "total_pages": totalPages},
+	}})
 }
 
 func (h *Handlers) CreateFile(c *gin.Context) {
@@ -255,4 +290,27 @@ func (h *Handlers) DownloadFile(c *gin.Context) {
 	}
 
 	c.Redirect(http.StatusFound, fileURL)
+}
+
+func (h *Handlers) UpdateTheme(c *gin.Context) {
+	userID := c.MustGet("user_id").(string)
+	var req struct {
+		Theme string `json:"theme"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+
+	if req.Theme != "light" && req.Theme != "dark" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "theme must be 'light' or 'dark'"})
+		return
+	}
+
+	if err := h.service.UpdateUserTheme(userID, req.Theme); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Response{Success: true, Message: "Theme updated successfully", Data: gin.H{"theme": req.Theme}})
 }

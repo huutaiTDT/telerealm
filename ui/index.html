@@ -543,7 +543,21 @@
                 Delete selected
               </button>
 
-              <div style="margin-left: auto">
+              <div style="margin-left: auto; display: flex; align-items: center; gap: 16px;">
+                <!-- Card/Row Size Slider -->
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted);">
+                  <span>Size:</span>
+                  <input
+                    id="sizeSlider"
+                    type="range"
+                    min="0.75"
+                    max="1.6"
+                    step="0.05"
+                    value="1.0"
+                    style="width: 80px; height: 4px; border-radius: 99px; accent-color: var(--primary); cursor: pointer;"
+                  />
+                </div>
+
                 <div class="view-toggle" role="group" aria-label="File view">
                   <button
                     id="gridViewBtn"
@@ -577,8 +591,21 @@
                 </button>
               </div>
 
-              <div class="pagination-controls">
+              <div class="pagination-controls" style="display: flex; align-items: center; gap: 12px;">
+                <!-- Page Size Selector -->
+                <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted);">
+                  <span>Show:</span>
+                  <select id="pageSizeSelector" style="padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 12.5px; cursor: pointer;">
+                    <option value="4">4</option>
+                    <option value="8" selected>8</option>
+                    <option value="16">16</option>
+                    <option value="32">32</option>
+                    <option value="64">64</option>
+                  </select>
+                </div>
+
                 <span id="paginationSummary" class="pagination-summary"></span>
+
                 <button
                   id="prevPageBtn"
                   class="ghost-btn"
@@ -586,6 +613,10 @@
                   style="padding: 4px 10px">
                   Prev
                 </button>
+
+                <!-- Page numbers container -->
+                <div id="pageNumbersContainer" style="display: flex; align-items: center; gap: 4px;"></div>
+
                 <button
                   id="nextPageBtn"
                   class="ghost-btn"

@@ -107,6 +107,7 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'light'`,
 		`CREATE TABLE IF NOT EXISTS sessions (
 			token TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -205,10 +206,10 @@ func (s *Store) GetUserByID(userID string) (models.User, bool) {
 
 	var user models.User
 	if err := s.db.QueryRowContext(ctx, `
-		SELECT id, name, email, password_hash, created_at, updated_at
+		SELECT id, name, email, password_hash, created_at, updated_at, theme
 		FROM users
 		WHERE id = $1
-	`, userID).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt); err != nil {
+	`, userID).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt, &user.Theme); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.User{}, false
 		}
@@ -269,6 +270,7 @@ func (s *Store) RegisterUser(req models.RegisterRequest) (models.User, string, e
 		PasswordHash: hash,
 		CreatedAt:    now,
 		UpdatedAt:    now,
+		Theme:        "light",
 	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO users (id, name, email, password_hash, created_at, updated_at)
@@ -309,10 +311,10 @@ func (s *Store) LoginUser(email, password string) (models.User, string, error) {
 
 	var user models.User
 	if err := s.db.QueryRowContext(ctx, `
-		SELECT id, name, email, password_hash, created_at, updated_at
+		SELECT id, name, email, password_hash, created_at, updated_at, theme
 		FROM users
 		WHERE lower(email) = lower($1)
-	`, email).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt); err != nil {
+	`, email).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt, &user.Theme); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.User{}, "", fmt.Errorf("invalid credentials")
 		}
@@ -593,6 +595,65 @@ func (s *Store) ListFiles(userID, botID, chatID string) []models.FileRecord {
 	return files
 }
 
+// CountFiles returns the total number of files for a chat (or bot) with optional chat filter.
+func (s *Store) CountFiles(userID, botID, chatID string) (int, error) {
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    query := `SELECT COUNT(*) FROM files WHERE user_id = $1 AND bot_id = $2`
+    args := []interface{}{userID, botID}
+    if strings.TrimSpace(chatID) != "" {
+        query += ` AND chat_id = $3`
+        args = append(args, chatID)
+    }
+    var count int
+    if err := s.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+        return 0, err
+    }
+    return count, nil
+}
+
+// ListFilesPaginated returns a slice of FileRecord with pagination support.
+func (s *Store) ListFilesPaginated(userID, botID, chatID string, offset, limit int) ([]models.FileRecord, error) {
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    query := `
+        SELECT record_id, user_id, bot_id, bot_token, COALESCE(bot_name, ''), COALESCE(bot_username, ''), file_id, chat_id,
+            COALESCE(chat_title, ''), COALESCE(chat_type, ''), COALESCE(folder_name, ''), url, secure_url, bytes, COALESCE(format, ''), COALESCE(original_name, ''), created_at, updated_at
+        FROM files
+        WHERE user_id = $1 AND bot_id = $2`
+    args := []interface{}{userID, botID}
+    if strings.TrimSpace(chatID) != "" {
+        query += ` AND chat_id = $3`
+        args = append(args, chatID)
+    }
+    query += ` ORDER BY created_at DESC OFFSET $%d LIMIT $%d`
+    // placeholder indices depend on number of args already
+    offsetIdx := len(args) + 1
+    limitIdx := len(args) + 2
+    query = fmt.Sprintf(query, offsetIdx, limitIdx)
+    args = append(args, offset, limit)
+
+    rows, err := s.db.QueryContext(ctx, query, args...)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    files := make([]models.FileRecord, 0)
+    for rows.Next() {
+        var file models.FileRecord
+        var bytesValue int64
+        if err := rows.Scan(&file.RecordID, &file.UserID, &file.BotID, &file.BotToken, &file.BotName, &file.BotUsername, &file.FileID, &file.ChatID, &file.ChatTitle, &file.ChatType, &file.FolderName, &file.URL, &file.SecureURL, &bytesValue, &file.Format, &file.OriginalName, &file.CreatedAt, &file.UpdatedAt); err != nil {
+            continue
+        }
+        file.Bytes = int(bytesValue)
+        files = append(files, file)
+    }
+    return files, nil
+}
+
 func (s *Store) GetFile(userID, fileID string) (models.FileRecord, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -777,4 +838,16 @@ func (s *Store) CountChats(userID, botID string) int {
 func parseInt64(value string) int64 {
 	parsed, _ := strconv.ParseInt(value, 10, 64)
 	return parsed
+}
+
+func (s *Store) UpdateUserTheme(userID string, theme string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE users
+		SET theme = $1, updated_at = NOW()
+		WHERE id = $2
+	`, theme, userID)
+	return err
 }

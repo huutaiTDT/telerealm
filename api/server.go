@@ -53,6 +53,7 @@ func NewRouter() (*gin.Engine, error) {
 		secure.Use(middleware.SessionAuthRequired(store))
 		{
 			secure.GET("/me", handlers.Me)
+			secure.PUT("/users/theme", handlers.UpdateTheme)
 			secure.GET("/bots", handlers.ListBots)
 			secure.POST("/bots", handlers.CreateBot)
 			secure.POST("/bots/:botID/sync", handlers.SyncChats)

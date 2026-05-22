@@ -87,7 +87,7 @@ function initPageLoader() {
     if (samePageHashOnly) return;
 
     if (nextURL.origin === window.location.origin) {
-      showPageLoader("Opening page...");
+      showPageLoader("Đang mở trang | Opening page...");
     }
   });
 }
@@ -106,7 +106,7 @@ function ensurePageLoader() {
       <span class="page-loader__spinner" aria-hidden="true"></span>
       <div>
         <strong>TeleRealm</strong>
-        <p id="pageLoaderMessage">Loading page...</p>
+        <p id="pageLoaderMessage">Đang tải trang | Loading page...</p>
       </div>
     </div>
   `;
@@ -114,7 +114,7 @@ function ensurePageLoader() {
   document.body.appendChild(loader);
 }
 
-function showPageLoader(message = "Loading page...") {
+function showPageLoader(message = "Đang tải trang | Loading page...") {
   const loader = document.getElementById(PAGE_LOADER_ID);
   const messageNode = document.getElementById("pageLoaderMessage");
 
@@ -153,14 +153,14 @@ function ensureFloatingUploadProgress() {
   widget.setAttribute("aria-live", "polite");
   widget.innerHTML = `
     <div class="floating-upload-progress__header">
-      <strong>Upload Progress</strong>
+      <strong>Tiến trình tải lên | Upload Progress</strong>
       <span id="floatingUploadPercent">0%</span>
     </div>
-    <p id="floatingUploadFile">Waiting for upload...</p>
+    <p id="floatingUploadFile">Đang chờ tải lên | Waiting for upload...</p>
     <div class="floating-upload-progress__bar">
       <div id="floatingUploadBar" class="floating-upload-progress__fill"></div>
     </div>
-    <small id="floatingUploadMeta">0 / 0 files completed</small>
+    <small id="floatingUploadMeta">0 / 0 tệp hoàn tất | files completed</small>
   `;
 
   document.body.appendChild(widget);
@@ -168,7 +168,7 @@ function ensureFloatingUploadProgress() {
 
 function updateFloatingUploadProgress({
   visible = true,
-  fileName = "Waiting for upload...",
+  fileName = "Đang chờ tải lên | Waiting for upload...",
   percent = 0,
   completed = 0,
   total = 0,
@@ -187,13 +187,13 @@ function updateFloatingUploadProgress({
   percentNode.textContent = `${safePercent}%`;
   fileNode.textContent = fileName;
   barNode.style.width = `${safePercent}%`;
-  metaNode.textContent = `${completed} / ${total} files completed`;
+  metaNode.textContent = `${completed} / ${total} tệp hoàn tất | files completed`;
 }
 
 function resetFloatingUploadProgress() {
   updateFloatingUploadProgress({
     visible: false,
-    fileName: "Waiting for upload...",
+    fileName: "Đang chờ tải lên | Waiting for upload...",
     percent: 0,
     completed: 0,
     total: 0,

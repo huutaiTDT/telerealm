@@ -101,6 +101,17 @@ func (s *Service) ListFiles(userID, botID, chatID string) []models.FileRecord {
 	return s.store.ListFiles(userID, botID, chatID)
 }
 
+// CountFiles returns the total number of files for a chat (or bot).
+func (s *Service) CountFiles(userID, botID, chatID string) (int, error) {
+    return s.store.CountFiles(userID, botID, chatID)
+}
+
+// ListFilesPaginated returns a slice of FileRecord with pagination support.
+func (s *Service) ListFilesPaginated(userID, botID, chatID string, offset, limit int) ([]models.FileRecord, error) {
+    return s.store.ListFilesPaginated(userID, botID, chatID, offset, limit)
+}
+
+
 func (s *Service) CreateFile(userID, botID, chatID string, file io.Reader, fileName string, folderName string) (models.FileRecord, error) {
 	bot, found := s.store.GetBot(userID, botID)
 	if !found {
@@ -181,6 +192,10 @@ func (s *Service) DeleteFile(userID, fileID string) error {
 
 func (s *Service) ResolveDownload(encrypted string) (string, error) {
 	return s.store.ResolveDownloadURL(encrypted)
+}
+
+func (s *Service) UpdateUserTheme(userID string, theme string) error {
+	return s.store.UpdateUserTheme(userID, theme)
 }
 
 func fileExtension(name string) string {

@@ -32,9 +32,7 @@ const state = {
   dateTo: "",
   folderFilter: "",
   currentPage: 1,
-  pageSize: 8,
-  visibleCount: 0,
-  fileRenderSignature: "",
+  pageSize: Number(localStorage.getItem("telerealm.pageSize") || "8"),
   thumbnailScale: Number(localStorage.getItem(THUMBNAIL_SCALE_KEY) || "1"),
   selectedFileIDs: new Set(),
   trashedFileIDs: new Set(
@@ -83,6 +81,9 @@ const selectedChatInfo = document.getElementById("selectedChatInfo");
 const dateFromFilter = document.getElementById("dateFromFilter");
 const dateToFilter = document.getElementById("dateToFilter");
 const folderFilterInput = document.getElementById("folderFilter");
+const sizeSlider = document.getElementById("sizeSlider");
+const pageSizeSelector = document.getElementById("pageSizeSelector");
+const pageNumbersContainer = document.getElementById("pageNumbersContainer");
 const selectVisibleBtn = document.getElementById("selectVisibleBtn");
 const bulkDownloadBtn = document.getElementById("bulkDownloadBtn");
 const bulkFolderBtn = document.getElementById("bulkFolderBtn");
@@ -237,119 +238,85 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function isMobileViewport() {
-  return window.matchMedia("(max-width: 768px)").matches;
+function getPageSizeOptions() {
+  return [4, 8, 16, 32, 64];
 }
 
-function getAdaptiveBatchSize() {
-  if (state.viewMode !== "grid") {
-    return Math.max(8, state.pageSize);
-  }
-
-  const gridWidth = fileGrid?.clientWidth || window.innerWidth;
-  const minCardWidth = Math.max(150, Math.round(220 * state.thumbnailScale));
-  const estimatedColumns = Math.max(
-    1,
-    Math.floor((gridWidth + 20) / (minCardWidth + 20)),
-  );
-  const viewportHeight = workspacePanel?.clientHeight || window.innerHeight;
-  const estimatedRowHeight = Math.max(
-    180,
-    Math.round(250 * state.thumbnailScale),
-  );
-  const rowsPerScreen = Math.max(
-    2,
-    Math.ceil(viewportHeight / estimatedRowHeight),
-  );
-
-  let batch = estimatedColumns * rowsPerScreen * 2;
-  if (isMobileViewport()) {
-    batch = Math.max(12, batch);
-  }
-
-  return clamp(batch, 8, 120);
+function sanitizePageSize(value) {
+  const numeric = Number(value);
+  return getPageSizeOptions().includes(numeric) ? numeric : 8;
 }
 
-function getFilesRenderSignature() {
-  const trashCount = state.trashedFileIDs.size;
-  const activeChatId = state.activeChat?.chat_id || "";
-  const fromDate = dateFromFilter?.value || "";
-  const toDate = dateToFilter?.value || "";
-  return [
-    state.activeSection,
-    state.activeCategory,
-    state.activeFolder || "",
-    state.search,
-    state.folderFilter,
-    fromDate,
-    toDate,
-    activeChatId,
-    state.viewMode,
-    state.files.length,
-    trashCount,
-    state.thumbnailScale,
-  ].join("|");
-}
-
-function applyGridScale() {
+function applyViewScale() {
   if (!fileGrid) return;
-  fileGrid.style.setProperty(
-    "--grid-thumb-scale",
-    String(state.thumbnailScale),
-  );
-}
-
-function resetVisibleItems() {
-  state.visibleCount = getAdaptiveBatchSize();
-}
-
-function loadMoreVisibleItems(totalItems) {
-  if (state.viewMode !== "grid") return false;
-  if (state.visibleCount >= totalItems) return false;
-
-  state.visibleCount = Math.min(
-    totalItems,
-    state.visibleCount + getAdaptiveBatchSize(),
-  );
-  return true;
-}
-
-function tryLoadMoreOnScroll() {
-  if (state.viewMode !== "grid" || !workspacePanel) return;
-
-  const remaining =
-    workspacePanel.scrollHeight -
-    workspacePanel.scrollTop -
-    workspacePanel.clientHeight;
-
-  if (remaining > 280) return;
-
-  const totalItems = getFilteredFiles().length;
-  if (loadMoreVisibleItems(totalItems)) {
-    renderFiles();
+  const scale = clamp(Number(state.thumbnailScale) || 1, 0.75, 1.6);
+  fileGrid.style.setProperty("--grid-thumb-scale", String(scale));
+  fileGrid.style.setProperty("--list-row-scale", String(scale));
+  if (sizeSlider && Number(sizeSlider.value) !== scale) {
+    sizeSlider.value = String(scale);
   }
 }
 
-function handleGridZoomWheel(event) {
-  if (state.viewMode !== "grid") return;
-  if (!event.ctrlKey && !event.metaKey) return;
+function getPagedFiles(files) {
+  const totalPages = Math.max(1, Math.ceil(files.length / state.pageSize));
+  state.currentPage = clamp(state.currentPage, 1, totalPages);
+  const start = (state.currentPage - 1) * state.pageSize;
+  return {
+    totalPages,
+    pageFiles: files.slice(start, start + state.pageSize),
+  };
+}
 
-  event.preventDefault();
-  const nextScale = clamp(
-    state.thumbnailScale + (event.deltaY < 0 ? 0.08 : -0.08),
-    0.75,
-    1.6,
-  );
+function buildPageButtons(totalPages, currentPage) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
 
-  if (nextScale === state.thumbnailScale) return;
+  const pages = new Set([1, totalPages]);
+  for (let offset = -1; offset <= 1; offset += 1) {
+    const page = currentPage + offset;
+    if (page > 1 && page < totalPages) pages.add(page);
+  }
 
-  state.thumbnailScale = Number(nextScale.toFixed(2));
-  localStorage.setItem(THUMBNAIL_SCALE_KEY, String(state.thumbnailScale));
-  applyGridScale();
+  const orderedPages = Array.from(pages).sort((a, b) => a - b);
+  const result = [];
+  for (let index = 0; index < orderedPages.length; index += 1) {
+    const page = orderedPages[index];
+    const previous = orderedPages[index - 1];
+    if (index > 0 && page - previous > 1) {
+      if (page - previous === 2) {
+        result.push(previous + 1);
+      } else {
+        result.push("...");
+      }
+    }
+    result.push(page);
+  }
+  return result;
+}
 
-  const minVisible = getAdaptiveBatchSize();
-  state.visibleCount = Math.max(state.visibleCount, minVisible);
-  renderFiles();
+function renderPageNumbers(totalPages, currentPage) {
+  if (!pageNumbersContainer) return;
+
+  pageNumbersContainer.innerHTML = "";
+  const pageSequence = buildPageButtons(totalPages, currentPage);
+
+  pageSequence.forEach((item) => {
+    if (item === "...") {
+      const ellipsis = document.createElement("span");
+      ellipsis.className = "page-number-ellipsis";
+      ellipsis.textContent = "...";
+      pageNumbersContainer.appendChild(ellipsis);
+      return;
+    }
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `page-number-btn${item === currentPage ? " active" : ""}`;
+    button.dataset.page = String(item);
+    button.textContent = String(item);
+    pageNumbersContainer.appendChild(button);
+  });
 }
 
 function safeJsonParse(value, fallback) {
@@ -536,6 +503,7 @@ function setViewSection(section, category = "") {
   state.activeSection = section;
   state.activeCategory = category;
   state.activeFolder = null;
+  state.currentPage = 1;
   state.selectedFileIDs.clear();
 
   // Highlight sidebar item active status
@@ -654,16 +622,6 @@ function getFilteredFiles() {
   });
 }
 
-function getPaginatedFiles(files) {
-  const totalPages = Math.max(1, Math.ceil(files.length / state.pageSize));
-  state.currentPage = Math.min(state.currentPage, totalPages);
-  const start = (state.currentPage - 1) * state.pageSize;
-  return {
-    totalPages,
-    pageFiles: files.slice(start, start + state.pageSize),
-  };
-}
-
 // File Thumbnail design matching reference formats
 function renderFileThumb(file) {
   const format = escapeHtml((file.format || "FILE").toUpperCase());
@@ -698,16 +656,10 @@ function renderFiles() {
   fileGrid.innerHTML = "";
   fileGrid.className =
     state.viewMode === "list" ? "files-grid list-mode" : "files-grid";
-  applyGridScale();
-
-  const nextSignature = getFilesRenderSignature();
-  if (nextSignature !== state.fileRenderSignature) {
-    state.fileRenderSignature = nextSignature;
-    resetVisibleItems();
-    state.currentPage = 1;
-  }
+  applyViewScale();
 
   const allFiltered = getFilteredFiles();
+  const { totalPages, pageFiles } = getPagedFiles(allFiltered);
   fileCount.textContent = `${allFiltered.length} file(s)`;
 
   // Back button breadcrumbs controls
@@ -784,22 +736,7 @@ function renderFiles() {
   }
 
   // Dynamic File card rendering
-  let totalPages = 1;
-  let pageFiles = [];
-  if (state.viewMode === "grid") {
-    const minimumBatch = getAdaptiveBatchSize();
-    if (state.visibleCount < minimumBatch) {
-      state.visibleCount = minimumBatch;
-    }
-    const shown = Math.min(allFiltered.length, state.visibleCount);
-    pageFiles = allFiltered.slice(0, shown);
-    renderPagination(totalPages, allFiltered.length, shown);
-  } else {
-    const pageData = getPaginatedFiles(allFiltered);
-    totalPages = pageData.totalPages;
-    pageFiles = pageData.pageFiles;
-    renderPagination(totalPages, allFiltered.length, pageFiles.length);
-  }
+  renderPagination(totalPages, allFiltered.length, pageFiles.length);
 
   if (pageFiles.length === 0) {
     fileGrid.innerHTML = `
@@ -815,7 +752,7 @@ function renderFiles() {
   pageFiles.forEach((file) => {
     const card = document.createElement("article");
     const isChecked = state.selectedFileIDs.has(file.record_id);
-    card.className = `file-card ${isChecked ? "selected" : ""} ${state.viewMode === "grid" ? "is-entering" : ""}`;
+    card.className = `file-card ${isChecked ? "selected" : ""} is-entering`;
     card.setAttribute("data-record-id", file.record_id);
 
     const isTrashed = state.activeSection === "trash";
@@ -972,21 +909,11 @@ function clearSelection() {
 
 // Pagination Controls
 function renderPagination(totalPages, totalItems, shownItems = 0) {
-  if (state.viewMode === "grid") {
-    if (paginationSummary) {
-      paginationSummary.textContent =
-        totalItems ?
-          `Showing ${shownItems} of ${totalItems} · Scroll to load more`
-        : "";
-    }
-    if (prevPageBtn) {
-      prevPageBtn.disabled = true;
-      prevPageBtn.textContent = "Prev";
-    }
-    if (nextPageBtn) {
-      nextPageBtn.textContent = "Load more";
-      nextPageBtn.disabled = shownItems >= totalItems;
-    }
+  if (!totalItems) {
+    if (paginationSummary) paginationSummary.textContent = "";
+    if (prevPageBtn) prevPageBtn.disabled = true;
+    if (nextPageBtn) nextPageBtn.disabled = true;
+    if (pageNumbersContainer) pageNumbersContainer.innerHTML = "";
     return;
   }
 
@@ -1004,6 +931,7 @@ function renderPagination(totalPages, totalItems, shownItems = 0) {
     nextPageBtn.textContent = "Next";
     nextPageBtn.disabled = state.currentPage >= totalPages;
   }
+  renderPageNumbers(totalPages, state.currentPage);
 }
 
 // Image Gallery Slider controls
@@ -1266,6 +1194,7 @@ async function selectBot(bot) {
     state.activeChat = null;
     state.chats = [];
     state.files = [];
+    state.currentPage = 1;
 
     syncChatsBtn.disabled = false;
     reloadFilesBtn.disabled = true;
@@ -1301,6 +1230,7 @@ async function selectChat(chat) {
       ...item,
       selected: item.chat_id === chat.chat_id,
     }));
+    state.currentPage = 1;
 
     uploadBtn.disabled = false;
     reloadFilesBtn.disabled = false;
@@ -1380,6 +1310,13 @@ async function loadChats({ force = false } = {}) {
   });
 }
 
+function applyTheme(isDark) {
+  const theme = isDark ? "dark" : "light";
+  state.theme = theme;
+  localStorage.setItem("telerealm.theme", theme);
+  document.body.classList.toggle("dark-mode", isDark);
+}
+
 function applyUser() {
   if (!state.user) return;
   const nameVal = state.user.name || "User";
@@ -1394,6 +1331,10 @@ function applyUser() {
   userBadgeName.textContent = nameVal;
 
   document.getElementById("settingsUserName").value = nameVal;
+
+  if (state.user.theme) {
+    applyTheme(state.user.theme === "dark");
+  }
 }
 
 function clearSession() {
@@ -1481,18 +1422,29 @@ function bindEvents() {
 
   // Theme toggle
   const themeToggle = document.getElementById("themeToggle");
-  function applyTheme(isDark) {
-    const theme = isDark ? "dark" : "light";
-    state.theme = theme;
-    localStorage.setItem("telerealm.theme", theme);
-    document.body.classList.toggle("dark-mode", isDark);
-  }
   // Initialize theme from storage
   const storedTheme = localStorage.getItem("telerealm.theme") || "light";
   applyTheme(storedTheme === "dark");
-  themeToggle.addEventListener("click", () => {
+  themeToggle.addEventListener("click", async () => {
     const isDark = document.body.classList.contains("dark-mode");
-    applyTheme(!isDark);
+    const nextDark = !isDark;
+    const nextTheme = nextDark ? "dark" : "light";
+
+    applyTheme(nextDark);
+
+    if (state.token) {
+      try {
+        await api("/api/users/theme", {
+          method: "PUT",
+          body: JSON.stringify({ theme: nextTheme }),
+        });
+        state.sidebarCollapsed = false;
+        setSidebarCollapsed(false);
+      } catch (err) {
+        console.error("Failed to update theme on backend:", err);
+        showToast("Failed to sync theme with server", "error");
+      }
+    }
   });
 
   // Navigation View switching
@@ -1633,33 +1585,51 @@ function bindEvents() {
   // Search filter
   fileSearch.addEventListener("input", (e) => {
     state.search = e.target.value || "";
-    resetVisibleItems();
     state.currentPage = 1;
     renderFiles();
   });
 
   // Dates Range & Folder filters inputs
   dateFromFilter?.addEventListener("change", () => {
-    resetVisibleItems();
     state.currentPage = 1;
     renderFiles();
   });
   dateToFilter?.addEventListener("change", () => {
-    resetVisibleItems();
     state.currentPage = 1;
     renderFiles();
   });
   folderFilterInput?.addEventListener("input", (e) => {
     state.folderFilter = e.target.value || "";
-    resetVisibleItems();
     state.currentPage = 1;
+    renderFiles();
+  });
+
+  sizeSlider?.addEventListener("input", (e) => {
+    state.thumbnailScale = clamp(Number(e.target.value) || 1, 0.75, 1.6);
+    localStorage.setItem(THUMBNAIL_SCALE_KEY, String(state.thumbnailScale));
+    applyViewScale();
+  });
+
+  pageSizeSelector?.addEventListener("change", (e) => {
+    state.pageSize = sanitizePageSize(e.target.value);
+    localStorage.setItem("telerealm.pageSize", String(state.pageSize));
+    state.currentPage = 1;
+    renderFiles();
+  });
+
+  pageNumbersContainer?.addEventListener("click", (e) => {
+    const button = e.target.closest("[data-page]");
+    if (!button) return;
+    const nextPage = Number(button.dataset.page);
+    if (!Number.isFinite(nextPage)) return;
+    if (nextPage === state.currentPage) return;
+    state.currentPage = nextPage;
     renderFiles();
   });
 
   // Grid/List Modes switches
   gridViewBtn.addEventListener("click", () => {
     state.viewMode = "grid";
-    resetVisibleItems();
     gridViewBtn.classList.add("active");
     listViewBtn.classList.remove("active");
     renderFiles();
@@ -1673,14 +1643,7 @@ function bindEvents() {
 
   // Selection controls
   selectVisibleBtn.addEventListener("click", () => {
-    const allVisible = getFilteredFiles();
-    const visible =
-      state.viewMode === "grid" ?
-        allVisible.slice(0, state.visibleCount)
-      : allVisible.slice(
-          (state.currentPage - 1) * state.pageSize,
-          state.currentPage * state.pageSize,
-        );
+    const visible = getPagedFiles(getFilteredFiles()).pageFiles;
     if (visible.length === 0) return;
     visible.forEach((f) => state.selectedFileIDs.add(f.record_id));
     renderSelectionSummary();
@@ -1721,7 +1684,11 @@ function bindEvents() {
             body: JSON.stringify({ folder_name: tag }),
           });
         }
-        await reloadFiles();
+        invalidateSnapshotScope(
+          "files",
+          `${state.activeBot?.id || ""}:${state.activeChat?.chat_id || ""}`,
+        );
+        await reloadFiles({ force: true });
         clearSelection();
       });
       showToast("Files updated successfully", "success");
@@ -1750,7 +1717,11 @@ function bindEvents() {
             JSON.stringify(Array.from(state.trashedFileIDs)),
           );
           clearSelection();
-          await reloadFiles();
+          invalidateSnapshotScope(
+            "files",
+            `${state.activeBot?.id || ""}:${state.activeChat?.chat_id || ""}`,
+          );
+          await reloadFiles({ force: true });
           showToast("Files deleted permanently", "success");
         } catch (err) {
           showToast(err.message, "error");
@@ -1767,29 +1738,20 @@ function bindEvents() {
 
   // Pagination clicks
   prevPageBtn.addEventListener("click", () => {
-    if (state.viewMode === "grid") return;
     if (state.currentPage > 1) {
       state.currentPage--;
       renderFiles();
     }
   });
   nextPageBtn.addEventListener("click", () => {
-    if (state.viewMode === "grid") {
-      const totalItems = getFilteredFiles().length;
-      if (loadMoreVisibleItems(totalItems)) {
-        renderFiles();
-      }
-      return;
+    const totalPages = Math.max(
+      1,
+      Math.ceil(getFilteredFiles().length / state.pageSize),
+    );
+    if (state.currentPage < totalPages) {
+      state.currentPage++;
+      renderFiles();
     }
-    state.currentPage++;
-    renderFiles();
-  });
-
-  workspacePanel?.addEventListener("scroll", tryLoadMoreOnScroll, {
-    passive: true,
-  });
-  workspacePanel?.addEventListener("wheel", handleGridZoomWheel, {
-    passive: false,
   });
 
   let resizeTimer;
@@ -1798,10 +1760,6 @@ function bindEvents() {
     () => {
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
-        const minimumBatch = getAdaptiveBatchSize();
-        if (state.visibleCount < minimumBatch) {
-          state.visibleCount = minimumBatch;
-        }
         renderFiles();
       }, 120);
     },
@@ -1830,9 +1788,12 @@ function bindEvents() {
           method: "POST",
           body: JSON.stringify(Object.fromEntries(formData.entries())),
         });
+        invalidateSnapshotScope("bots");
+        invalidateSnapshotScope("chats");
+        invalidateSnapshotScope("files");
         closeModal(botModal);
         e.target.reset();
-        await loadBots();
+        await loadBots({ force: true });
       });
       showToast("Bot connected successfully", "success");
     } catch (err) {
@@ -1885,8 +1846,13 @@ async function bootstrap() {
   }
   state.thumbnailScale = clamp(state.thumbnailScale, 0.75, 1.6);
   localStorage.setItem(THUMBNAIL_SCALE_KEY, String(state.thumbnailScale));
+  state.pageSize = sanitizePageSize(state.pageSize);
+  localStorage.setItem("telerealm.pageSize", String(state.pageSize));
 
   bindEvents();
+  if (sizeSlider) sizeSlider.value = String(state.thumbnailScale);
+  if (pageSizeSelector) pageSizeSelector.value = String(state.pageSize);
+  applyViewScale();
   setSidebarCollapsed(state.sidebarCollapsed);
   setViewSection("home");
 
