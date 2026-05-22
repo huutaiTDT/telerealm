@@ -1,5 +1,18 @@
 version: "3.8"
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: telerealm-postgres
+    environment:
+      POSTGRES_DB: telerealm
+      POSTGRES_USER: telerealm
+      POSTGRES_PASSWORD: telerealm
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
   telerealm:
     build:
       context: .
@@ -10,7 +23,13 @@ services:
     environment:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-telerealm-default-encryption-key-32b}
       - GIN_MODE=${GIN_MODE:-release}
+      - DATABASE_URL=postgres://telerealm:telerealm@postgres:5432/telerealm?sslmode=disable
     volumes:
       - ./data/multipart:/app/storage/multipart
+    depends_on:
+      - postgres
     restart: unless-stopped
+
+volumes:
+  postgres_data:
 

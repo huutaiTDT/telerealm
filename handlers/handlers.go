@@ -398,6 +398,10 @@ func (h *Handlers) SendFile(c *gin.Context) {
 func (h *Handlers) GetFileURL(c *gin.Context) {
 	botToken := c.MustGet("bot_token").(string)
 	fileID := c.Query("file_id")
+	if strings.TrimSpace(fileID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file_id is required"})
+		return
+	}
 
 	fileURL, _, err := h.service.GetFileInfo(botToken, fileID)
 	if err != nil {
@@ -488,6 +492,10 @@ func (h *Handlers) DownloadFile(c *gin.Context) {
 func (h *Handlers) GetFileInfo(c *gin.Context) {
 	botToken := c.MustGet("bot_token").(string)
 	fileID := c.Query("file_id")
+	if strings.TrimSpace(fileID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "file_id is required"})
+		return
+	}
 
 	fileURL, fileSize, err := h.service.GetFileInfo(botToken, fileID)
 	if err != nil {

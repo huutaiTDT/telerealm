@@ -2,6 +2,11 @@
 
 TeleRealm is a lightweight CDN-style file service built on top of Telegram Bot API storage. You can upload files, generate secure shareable links, manage upload records, and use either protected APIs or path-based public integration.
 
+The current layout is split into two clear folders:
+
+- `api/` for server-side routing, auth, bot/chat/file storage, and Telegram integration
+- `ui/` for the Drive-style web workspace
+
 ## Overview
 
 This version includes:
@@ -24,48 +29,42 @@ Current version note:
 
 ## Main Features
 
-- Telegram-backed file upload and retrieval
+- User register/login with session tokens
+- Connect Telegram bot tokens and load chats
+- Select a chat to browse its file storage
+- CRUD file records per chat
 - Secure download route via /drive/:key
-- Protected API with bearer bot token
-- Public CRUD API by URL scope: /link/:botToken/:chatID
-- Browser upload workspace with local temporary config/history
-- Public pages:
-  - /upload
-  - /public-api
-  - /demo
-  - /docs
+- Google Drive-style UI in the `ui/` folder
 
 ## Route Map
 
 ### Public Routes
 
 - GET /
-- GET /upload
-- GET /public-api
-- GET /demo
-- GET /docs
 - GET /ping
 - GET /drive/:key
 
-### Public Path-Based API
+### API Routes
 
-- POST /link/:botToken/:chatID
-- GET /link/:botToken/:chatID
-- GET /link/:botToken/:chatID/:id
-- PATCH /link/:botToken/:chatID/:id
-- DELETE /link/:botToken/:chatID/:id
+- POST /api/auth/register
+- POST /api/auth/login
+- GET /api/me
+- GET /api/bots
+- POST /api/bots
+- POST /api/bots/:botID/sync
+- GET /api/bots/:botID/chats
+- POST /api/bots/:botID/chats/:chatID/select
+- GET /api/bots/:botID/chats/:chatID/files
+- POST /api/bots/:botID/chats/:chatID/files
+- GET /api/files/:id
+- PATCH /api/files/:id
+- DELETE /api/files/:id
 
-### Protected API (Authorization: Bearer <bot_token>)
+### Frontend
 
-- POST /send
-- POST /files
-- GET /files
-- GET /files/:id
-- PATCH /files/:id
-- DELETE /files/:id
-- GET /url?file_id=...
-- GET /info?file_id=...
-- GET /verify?chat_id=...
+- `ui/index.html`
+- `ui/style.css`
+- `ui/app.js`
 
 ## Quick Start (Local)
 
@@ -82,6 +81,8 @@ go run main.go
 ```
 
 Server default: http://localhost:7777
+
+The UI is available at `/`, and all authenticated storage operations go through `/api/*`.
 
 ## Quick Start (Docker)
 

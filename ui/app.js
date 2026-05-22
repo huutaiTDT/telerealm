@@ -1,0 +1,1530 @@
+/** @format */
+
+const STORAGE_KEY = "telerealm.sessionToken";
+const TRASH_STORAGE_KEY = "telerealm.trashedFileIDs";
+
+const state = {
+  token: localStorage.getItem(STORAGE_KEY) || "",
+  user: null,
+  bots: [],
+  chats: [],
+  files: [],
+  activeBot: null,
+  activeChat: null,
+
+  // Navigation State
+  activeSection: "home", // home, workspaces, category, settings, help, trash
+  activeCategory: "", // photos, videos, documents, audio, shared
+  activeFolder: null, // current browsed folder name
+
+  search: "",
+  viewMode: "grid",
+  sidebarCollapsed: localStorage.getItem("telerealm.sidebarCollapsed") === "1",
+  dateFrom: "",
+  dateTo: "",
+  folderFilter: "",
+  currentPage: 1,
+  pageSize: 8,
+  selectedFileIDs: new Set(),
+  trashedFileIDs: new Set(
+    JSON.parse(localStorage.getItem(TRASH_STORAGE_KEY) || "[]"),
+  ),
+
+  // Preview
+  previewFiles: [],
+  previewIndex: 0,
+};
+
+let loadingDepth = 0;
+
+let pendingUploadFiles = [];
+let dragDepth = 0;
+
+// UI Element Selection
+const authScreen = document.getElementById("authScreen");
+const appScreen = document.getElementById("appScreen");
+const authMessage = document.getElementById("authMessage");
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+const botModal = document.getElementById("botModal");
+const fileModal = document.getElementById("fileModal");
+const settingsModal = document.getElementById("settingsModal");
+const helpModal = document.getElementById("helpModal");
+
+// Workspace Lists & Grids
+const botList = document.getElementById("botList");
+const chatList = document.getElementById("chatList");
+const fileGrid = document.getElementById("fileGrid");
+const foldersSection = document.getElementById("foldersSection");
+const foldersGrid = document.getElementById("foldersGrid");
+
+// Title, Breadcrumbs, Headers
+const workspaceTitle = document.getElementById("workspaceTitle");
+const workspaceSub = document.getElementById("workspaceSub");
+const backBtn = document.getElementById("backBtn");
+const topSectionLabel = document.getElementById("topSectionLabel");
+const fileCount = document.getElementById("fileCount");
+const selectedChatInfo = document.getElementById("selectedChatInfo");
+
+// Filters & Controls
+const dateFromFilter = document.getElementById("dateFromFilter");
+const dateToFilter = document.getElementById("dateToFilter");
+const folderFilterInput = document.getElementById("folderFilter");
+const selectVisibleBtn = document.getElementById("selectVisibleBtn");
+const bulkDownloadBtn = document.getElementById("bulkDownloadBtn");
+const bulkFolderBtn = document.getElementById("bulkFolderBtn");
+const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
+const clearSelectionBtn = document.getElementById("clearSelectionBtn");
+const selectionSummary = document.getElementById("selectionSummary");
+const paginationSummary = document.getElementById("paginationSummary");
+const prevPageBtn = document.getElementById("prevPageBtn");
+const nextPageBtn = document.getElementById("nextPageBtn");
+
+// Actions & Search
+const syncChatsBtn = document.getElementById("syncChatsBtn");
+const reloadFilesBtn = document.getElementById("reloadFilesBtn");
+const uploadBtn = document.getElementById("uploadBtn");
+const fileSearch = document.getElementById("fileSearch");
+const gridViewBtn = document.getElementById("gridViewBtn");
+const listViewBtn = document.getElementById("listViewBtn");
+const sidebarToggle = document.getElementById("sidebarToggle");
+const createBotToggle = document.getElementById("createBotToggle");
+const logoutBtn = document.getElementById("logoutBtn");
+
+// User Info
+const userName = document.getElementById("userName");
+const userEmail = document.getElementById("userEmail");
+const avatar = document.getElementById("avatar");
+const avatarBadge = document.getElementById("avatarBadge");
+const userBadgeName = document.getElementById("userBadgeName");
+
+// Loaders & Upload Progress
+const loadingOverlay = document.getElementById("loadingOverlay");
+const loadingText = document.getElementById("loadingText");
+const fileDropzone = document.getElementById("fileDropzone");
+const fileInput = document.getElementById("fileInput");
+const pickFilesBtn = document.getElementById("pickFilesBtn");
+const fileDropHint = document.getElementById("fileDropHint");
+const selectedFilesList = document.getElementById("selectedFilesList");
+const uploadProgressPopup = document.getElementById("uploadProgressPopup");
+const uploadProgressLabel = document.getElementById("uploadProgressLabel");
+const uploadProgressMeta = document.getElementById("uploadProgressMeta");
+const uploadProgressDetail = document.getElementById("uploadProgressDetail");
+const uploadProgressFill = document.getElementById("uploadProgressFill");
+
+// Preview Modal
+const previewModal = document.getElementById("previewModal");
+const previewImage = document.getElementById("previewImage");
+const previewTitle = document.getElementById("previewTitle");
+const previewChatInfo = document.getElementById("previewChatInfo");
+const previewMeta = document.getElementById("previewMeta");
+const previewOpenLink = document.getElementById("previewOpenLink");
+const previewPrevBtn = document.getElementById("previewPrevBtn");
+const previewNextBtn = document.getElementById("previewNextBtn");
+const toast = document.getElementById("toast");
+
+// Fetch API Wrapper
+function api(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (state.token) {
+    headers.set("Authorization", `Bearer ${state.token}`);
+  }
+
+  return fetch(path, {
+    ...options,
+    headers,
+  }).then(async (response) => {
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || payload.message || "Request failed");
+    }
+    return payload;
+  });
+}
+
+function unwrap(response) {
+  return response?.data ?? response;
+}
+
+// Toast Alert System
+function showToast(message, tone = "") {
+  if (!toast) return;
+  toast.textContent = message;
+  toast.className = "toast show";
+  if (tone) toast.classList.add(tone);
+
+  window.clearTimeout(window.toastTimeout);
+  window.toastTimeout = window.setTimeout(() => {
+    toast.className = "toast";
+  }, 3000);
+}
+
+function showAuthMessage(message, isError = false) {
+  authMessage.textContent = message;
+  authMessage.style.color = isError ? "#ef4444" : "#22c55e";
+}
+
+function setLoading(active, message) {
+  if (!loadingOverlay) return;
+  loadingOverlay.classList.toggle("hidden", !active);
+  if (loadingText && message) {
+    loadingText.textContent = message;
+  }
+}
+
+function beginLoading(message) {
+  loadingDepth += 1;
+  setLoading(true, message || "Processing request...");
+}
+
+function endLoading() {
+  loadingDepth = Math.max(0, loadingDepth - 1);
+  if (loadingDepth === 0) {
+    setLoading(false);
+  }
+}
+
+function getSidebarTooltipLabel(element) {
+  if (!element) return "";
+  const spanText = element.querySelector("span")?.textContent?.trim();
+  if (spanText) return spanText;
+  const ariaLabel = element.getAttribute("aria-label")?.trim();
+  if (ariaLabel) return ariaLabel;
+  return element.textContent?.trim() || "";
+}
+
+function applySidebarTooltips() {
+  const targets = document.querySelectorAll(
+    ".drive-nav__item, .workspace-nav-item, .category-nav-item, .sidebar-bottom-item, .add-bot-btn",
+  );
+
+  targets.forEach((element) => {
+    const label = getSidebarTooltipLabel(element);
+    if (!label) return;
+
+    if (state.sidebarCollapsed) {
+      element.setAttribute("title", label);
+      element.setAttribute("aria-label", label);
+      return;
+    }
+
+    if (
+      element.classList.contains("workspace-nav-item") ||
+      element.classList.contains("category-nav-item")
+    ) {
+      element.removeAttribute("title");
+    }
+  });
+}
+
+async function withLoading(message, task) {
+  beginLoading(message);
+  try {
+    return await task();
+  } finally {
+    endLoading();
+  }
+}
+
+// Sidebar toggle collapsing
+function setSidebarCollapsed(collapsed) {
+  state.sidebarCollapsed = collapsed;
+  localStorage.setItem("telerealm.sidebarCollapsed", collapsed ? "1" : "0");
+  appScreen.classList.toggle("sidebar-collapsed", collapsed);
+  if (sidebarToggle) {
+    sidebarToggle.textContent = collapsed ? "☰" : "⟨⟩";
+  }
+  applySidebarTooltips();
+}
+
+// Helper formats
+function prettyBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return `${size.toFixed(size >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function isPreviewableImage(file) {
+  const extension = String(file.format || "")
+    .trim()
+    .toLowerCase();
+  return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(
+    extension,
+  );
+}
+
+// Simulated Trash logic via LocalStorage
+function saveTrash() {
+  localStorage.setItem(
+    TRASH_STORAGE_KEY,
+    JSON.stringify(Array.from(state.trashedFileIDs)),
+  );
+  renderFiles();
+}
+
+// Redesigned active navigation view routing
+function setViewSection(section, category = "") {
+  state.activeSection = section;
+  state.activeCategory = category;
+  state.activeFolder = null;
+  state.selectedFileIDs.clear();
+
+  // Highlight sidebar item active status
+  document
+    .querySelectorAll(
+      ".drive-nav__item, .workspace-nav-item, .category-nav-item",
+    )
+    .forEach((el) => {
+      el.classList.remove("active");
+    });
+
+  if (section === "home") {
+    document.getElementById("navHome")?.classList.add("active");
+    topSectionLabel.textContent = "Home";
+  } else if (section === "workspaces") {
+    document.getElementById("navWorkspaces")?.classList.add("active");
+    topSectionLabel.textContent = "Workspaces";
+    if (state.activeChat) {
+      const activeEl = document.querySelector(
+        `.workspace-nav-item[data-chat-id="${state.activeChat.chat_id}"]`,
+      );
+      if (activeEl) activeEl.classList.add("active");
+    }
+  } else if (section === "category") {
+    const id = "cat" + category.charAt(0).toUpperCase() + category.slice(1);
+    document.getElementById(id)?.classList.add("active");
+    topSectionLabel.textContent =
+      category.charAt(0).toUpperCase() + category.slice(1);
+  } else if (section === "trash") {
+    document.getElementById("catTrash")?.classList.add("active");
+    topSectionLabel.textContent = "Trash";
+  }
+
+  // Load workspace folders and files
+  renderFiles();
+}
+
+// Unified dynamic file filtering
+function getFilteredFiles() {
+  const searchTerm = state.search.toLowerCase();
+  const folderTerm = state.folderFilter.toLowerCase();
+  const fromDate = dateFromFilter ? dateFromFilter.value : "";
+  const toDate = dateToFilter ? dateToFilter.value : "";
+
+  return state.files.slice().filter((file) => {
+    // 1. Trash filter check
+    const isTrashed = state.trashedFileIDs.has(file.record_id);
+    if (state.activeSection === "trash") {
+      if (!isTrashed) return false;
+    } else {
+      if (isTrashed) return false;
+    }
+
+    // 2. Chat filter check
+    if (state.activeSection === "workspaces" && state.activeChat) {
+      if (file.chat_id !== state.activeChat.chat_id) return false;
+    }
+
+    // 3. Categories format check
+    if (state.activeSection === "category") {
+      const ext = String(file.format || "")
+        .trim()
+        .toLowerCase();
+      if (state.activeCategory === "photos") {
+        if (!["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext))
+          return false;
+      } else if (state.activeCategory === "videos") {
+        if (!["mp4", "mkv", "avi", "mov", "webm", "flv"].includes(ext))
+          return false;
+      } else if (state.activeCategory === "documents") {
+        if (
+          ![
+            "pdf",
+            "docx",
+            "doc",
+            "xls",
+            "xlsx",
+            "ppt",
+            "pptx",
+            "txt",
+            "zip",
+            "rar",
+            "tar",
+            "gz",
+          ].includes(ext)
+        )
+          return false;
+      } else if (state.activeCategory === "audio") {
+        if (!["mp3", "wav", "flac", "m4a", "ogg"].includes(ext)) return false;
+      }
+    }
+
+    // 4. Folder deep navigation filter
+    if (state.activeFolder) {
+      if ((file.folder_name || "").trim() !== state.activeFolder) return false;
+    }
+
+    // 5. Normal search keyword filters
+    const haystack =
+      `${file.original_name || ""} ${file.file_id || ""} ${file.chat_title || ""} ${file.folder_name || ""}`.toLowerCase();
+    if (searchTerm && !haystack.includes(searchTerm)) return false;
+
+    // 6. Secondary folder input filters
+    if (
+      folderTerm &&
+      !(file.folder_name || "").toLowerCase().includes(folderTerm)
+    )
+      return false;
+
+    // 7. Date interval filters
+    const dateValue = file.created_at ? file.created_at.slice(0, 10) : "";
+    if (fromDate && dateValue && dateValue < fromDate) return false;
+    if (toDate && dateValue && dateValue > toDate) return false;
+
+    return true;
+  });
+}
+
+function getPaginatedFiles(files) {
+  const totalPages = Math.max(1, Math.ceil(files.length / state.pageSize));
+  state.currentPage = Math.min(state.currentPage, totalPages);
+  const start = (state.currentPage - 1) * state.pageSize;
+  return {
+    totalPages,
+    pageFiles: files.slice(start, start + state.pageSize),
+  };
+}
+
+// File Thumbnail design matching reference formats
+function renderFileThumb(file) {
+  const format = escapeHtml((file.format || "FILE").toUpperCase());
+  if (file.secure_url && isPreviewableImage(file)) {
+    return `
+      <div class="thumb" data-preview-id="${file.record_id}">
+        <img src="${escapeHtml(file.secure_url)}" alt="${escapeHtml(file.original_name || file.record_id)}" loading="lazy" />
+        <span class="thumb-overlay">Preview</span>
+      </div>
+    `;
+  }
+
+  // Visual icons for non-images
+  let iconColor = "var(--text-muted)";
+  if (["PDF"].includes(format)) iconColor = "var(--danger)";
+  else if (["XLSX", "XLS"].includes(format)) iconColor = "var(--success)";
+  else if (["DOCX", "DOC"].includes(format)) iconColor = "#2563eb";
+  else if (["ZIP", "RAR"].includes(format)) iconColor = "var(--warning)";
+
+  return `
+    <div class="thumb">
+      <div class="thumb-badge" style="color: ${iconColor};">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span>${format}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Workspace UI Folder / File renderer
+function renderFiles() {
+  fileGrid.innerHTML = "";
+  fileGrid.className =
+    state.viewMode === "list" ? "files-grid list-mode" : "files-grid";
+
+  const allFiltered = getFilteredFiles();
+  fileCount.textContent = `${allFiltered.length} file(s)`;
+
+  // Back button breadcrumbs controls
+  if (state.activeFolder) {
+    backBtn.classList.remove("hidden");
+  } else {
+    backBtn.classList.add("hidden");
+  }
+
+  // Breadcrumbs title rendering
+  if (state.activeSection === "home") {
+    workspaceTitle.innerHTML = `Home <span class="subtitle">Quick access files overview</span>`;
+  } else if (state.activeSection === "workspaces" && state.activeChat) {
+    const parentPath = escapeHtml(
+      state.activeChat.title || state.activeChat.chat_id,
+    );
+    if (state.activeFolder) {
+      workspaceTitle.innerHTML = `${parentPath} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="display:inline; margin: 0 4px;"><polyline points="9 18 15 12 9 6"/></svg> <span style="font-weight: 500; color: var(--primary);">${escapeHtml(state.activeFolder)}</span>`;
+    } else {
+      workspaceTitle.innerHTML = `${parentPath} <span class="subtitle">Telegram chat workspace storage</span>`;
+    }
+  } else if (state.activeSection === "category") {
+    workspaceTitle.innerHTML = `${state.activeCategory.charAt(0).toUpperCase() + state.activeCategory.slice(1)} <span class="subtitle">Filtered file assets category</span>`;
+  } else if (state.activeSection === "trash") {
+    workspaceTitle.innerHTML = `Trash <span class="subtitle">Recently trashed workspace files</span>`;
+  }
+
+  // Dynamic Folders Section setup
+  if (
+    state.activeSection === "workspaces" &&
+    state.activeChat &&
+    !state.activeFolder
+  ) {
+    // Collect unique non-empty folder names in this chat
+    const folders = Array.from(
+      new Set(
+        state.files
+          .filter(
+            (f) =>
+              f.chat_id === state.activeChat.chat_id &&
+              f.folder_name &&
+              !state.trashedFileIDs.has(f.record_id),
+          )
+          .map((f) => f.folder_name.trim()),
+      ),
+    ).filter(Boolean);
+
+    if (folders.length > 0) {
+      foldersSection.classList.remove("hidden");
+      foldersGrid.innerHTML = folders
+        .map(
+          (folder) => `
+        <div class="folder-card" data-folder-click="${escapeHtml(folder)}">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+          <span title="${escapeHtml(folder)}">${escapeHtml(folder)}</span>
+        </div>
+      `,
+        )
+        .join("");
+
+      // Bind click on folder card
+      foldersGrid.querySelectorAll("[data-folder-click]").forEach((card) => {
+        card.addEventListener("click", () => {
+          state.activeFolder = card.getAttribute("data-folder-click");
+          state.currentPage = 1;
+          renderFiles();
+        });
+      });
+    } else {
+      foldersSection.classList.add("hidden");
+    }
+  } else {
+    foldersSection.classList.add("hidden");
+  }
+
+  // Dynamic File card rendering
+  const { totalPages, pageFiles } = getPaginatedFiles(allFiltered);
+  renderPagination(totalPages, allFiltered.length);
+
+  if (pageFiles.length === 0) {
+    fileGrid.innerHTML = `
+      <div style="grid-column: 1/-1; text-align: center; padding: 48px; color: var(--text-muted);">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 12px; display: block;"><circle cx="12" cy="12" r="10"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+        <strong style="display:block; margin-bottom: 4px; color: var(--text-main);">No items found</strong>
+        <span>This section is empty. Try connecting a bot or uploading files.</span>
+      </div>
+    `;
+    return;
+  }
+
+  pageFiles.forEach((file) => {
+    const card = document.createElement("article");
+    const isChecked = state.selectedFileIDs.has(file.record_id);
+    card.className = `file-card ${isChecked ? "selected" : ""}`;
+    card.setAttribute("data-record-id", file.record_id);
+
+    const isTrashed = state.activeSection === "trash";
+
+    card.innerHTML = `
+      <input type="checkbox" class="file-card__check" ${isChecked ? "checked" : ""} />
+      ${renderFileThumb(file)}
+      <div class="file-card-info">
+        <strong title="${escapeHtml(file.original_name || file.record_id)}">${escapeHtml(file.original_name || file.record_id)}</strong>
+        <div class="file-card-meta">
+          <span class="size">${prettyBytes(file.bytes || 0)}</span>
+          ${file.folder_name ? `<span class="folder-pill" title="${escapeHtml(file.folder_name)}">${escapeHtml(file.folder_name)}</span>` : ""}
+        </div>
+      </div>
+      <div class="file-card-actions">
+        ${
+          isTrashed ?
+            `
+          <button class="open-btn restore-btn" type="button">Restore</button>
+          <button class="delete-btn perm-delete-btn" type="button">Delete</button>
+        `
+          : `
+          ${file.secure_url ? `<a class="open-btn" href="${escapeHtml(file.secure_url)}" target="_blank" rel="noreferrer">Open</a>` : ""}
+          <button class="action-btn rename-btn" type="button">Rename</button>
+          <button class="delete-btn trash-btn" type="button">Trash</button>
+        `
+        }
+      </div>
+    `;
+
+    // Event binding
+    const checkEl = card.querySelector(".file-card__check");
+    checkEl.addEventListener("change", (e) => {
+      toggleSelectedFile(file.record_id, e.target.checked);
+    });
+
+    const previewEl = card.querySelector(".thumb");
+    if (previewEl && isPreviewableImage(file)) {
+      previewEl.addEventListener("click", () => {
+        openPreviewModal(file, allFiltered);
+      });
+    }
+
+    if (isTrashed) {
+      card.querySelector(".restore-btn").addEventListener("click", () => {
+        state.trashedFileIDs.delete(file.record_id);
+        saveTrash();
+        showToast("File restored successfully", "success");
+      });
+      card
+        .querySelector(".perm-delete-btn")
+        .addEventListener("click", async () => {
+          if (
+            !confirm(
+              "Are you sure you want to permanently delete this file? This action is irreversible.",
+            )
+          )
+            return;
+          try {
+            await withLoading("Deleting file permanently...", async () => {
+              await api(`/api/files/${file.record_id}`, { method: "DELETE" });
+              state.trashedFileIDs.delete(file.record_id);
+              localStorage.setItem(
+                TRASH_STORAGE_KEY,
+                JSON.stringify(Array.from(state.trashedFileIDs)),
+              );
+              await reloadFiles();
+            });
+            showToast("File permanently deleted", "success");
+          } catch (err) {
+            showToast(err.message, "error");
+          }
+        });
+    } else {
+      card.querySelector(".rename-btn").addEventListener("click", async () => {
+        const currentName = file.original_name || "";
+        const nextName = prompt("Enter new name for the file:", currentName);
+        if (!nextName || nextName.trim() === "" || nextName === currentName)
+          return;
+        try {
+          await withLoading("Renaming file...", async () => {
+            await api(`/api/files/${file.record_id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ original_name: nextName.trim() }),
+            });
+            await reloadFiles();
+          });
+          showToast("File renamed successfully", "success");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
+      });
+
+      card.querySelector(".trash-btn").addEventListener("click", () => {
+        state.trashedFileIDs.add(file.record_id);
+        saveTrash();
+        showToast("File moved to Trash", "success");
+      });
+    }
+
+    fileGrid.appendChild(card);
+  });
+}
+
+// Bulk & Selection Operations
+function toggleSelectedFile(fileID, checked) {
+  if (checked) {
+    state.selectedFileIDs.add(fileID);
+  } else {
+    state.selectedFileIDs.delete(fileID);
+  }
+  renderSelectionSummary();
+
+  // Highlight active selected state on card
+  const card = document.querySelector(`.file-card[data-record-id="${fileID}"]`);
+  if (card) {
+    card.classList.toggle("selected", checked);
+  }
+}
+
+function renderSelectionSummary() {
+  const count = state.selectedFileIDs.size;
+  if (selectionSummary) {
+    selectionSummary.textContent =
+      count ? `${count} file(s) selected.` : "No files selected.";
+  }
+  if (clearSelectionBtn) {
+    clearSelectionBtn.classList.toggle("hidden", count === 0);
+  }
+  const disabled = count === 0;
+  [bulkDownloadBtn, bulkFolderBtn, bulkDeleteBtn].forEach((btn) => {
+    if (btn) btn.disabled = disabled;
+  });
+}
+
+function clearSelection() {
+  state.selectedFileIDs.clear();
+  renderSelectionSummary();
+  document
+    .querySelectorAll(".file-card__check")
+    .forEach((cb) => (cb.checked = false));
+  document
+    .querySelectorAll(".file-card")
+    .forEach((card) => card.classList.remove("selected"));
+}
+
+// Pagination Controls
+function renderPagination(totalPages, totalItems) {
+  if (paginationSummary) {
+    paginationSummary.textContent =
+      totalItems ?
+        `Page ${state.currentPage} of ${totalPages} (${totalItems} items)`
+      : "";
+  }
+  if (prevPageBtn) prevPageBtn.disabled = state.currentPage <= 1;
+  if (nextPageBtn) nextPageBtn.disabled = state.currentPage >= totalPages;
+}
+
+// Image Gallery Slider controls
+function openPreviewModal(file, filesList) {
+  const images = filesList.filter((f) => isPreviewableImage(f) && f.secure_url);
+  if (images.length === 0) return;
+  state.previewFiles = images;
+  state.previewIndex = Math.max(
+    0,
+    images.findIndex((img) => img.record_id === file.record_id),
+  );
+  renderPreviewModal();
+  openModal(previewModal);
+}
+
+function renderPreviewModal() {
+  const file = state.previewFiles[state.previewIndex];
+  if (!file) return;
+  previewImage.src = file.secure_url;
+  previewImage.alt = file.original_name || file.record_id;
+  previewTitle.textContent = file.original_name || "Preview";
+  previewMeta.textContent = `${state.previewIndex + 1} of ${state.previewFiles.length} · ${prettyBytes(file.bytes || 0)}`;
+  previewOpenLink.href = file.secure_url;
+  previewPrevBtn.disabled = state.previewIndex <= 0;
+  previewNextBtn.disabled = state.previewIndex >= state.previewFiles.length - 1;
+}
+
+function previewStep(delta) {
+  const nextIdx = state.previewIndex + delta;
+  if (nextIdx < 0 || nextIdx >= state.previewFiles.length) return;
+  state.previewIndex = nextIdx;
+  renderPreviewModal();
+}
+
+function openModal(modal) {
+  modal.classList.remove("hidden");
+}
+
+function closeModal(modal) {
+  modal.classList.add("hidden");
+}
+
+// File dropzone handlers
+function syncPendingUploadFiles(files) {
+  pendingUploadFiles = Array.from(files || []).filter(Boolean);
+  if (fileInput) {
+    const dt = new DataTransfer();
+    pendingUploadFiles.forEach((f) => dt.items.add(f));
+    fileInput.files = dt.files;
+  }
+  renderSelectedUploadFiles();
+}
+
+function renderSelectedUploadFiles() {
+  if (fileDropHint) {
+    const count = pendingUploadFiles.length;
+    fileDropHint.textContent =
+      count ? `${count} file(s) selected.` : "No files selected yet.";
+  }
+  if (!selectedFilesList) return;
+  selectedFilesList.innerHTML = pendingUploadFiles
+    .map(
+      (f) => `
+      <div class="selected-file-chip">
+        <span>${escapeHtml(f.name)}</span>
+        <span class="size">${prettyBytes(f.size || 0)}</span>
+      </div>
+    `,
+    )
+    .join("");
+}
+
+function clearUploadSelection() {
+  pendingUploadFiles = [];
+  dragDepth = 0;
+  if (fileInput) fileInput.value = "";
+  if (fileDropzone) fileDropzone.classList.remove("is-dragover");
+  renderSelectedUploadFiles();
+}
+
+// Upload progress pop-ups
+function updateUploadProgress(percent, file, index, total, detail) {
+  uploadProgressPopup.classList.remove("hidden");
+  if (uploadProgressLabel)
+    uploadProgressLabel.textContent = `Uploading ${index} of ${total}`;
+  if (uploadProgressMeta) uploadProgressMeta.textContent = `${percent}%`;
+  if (uploadProgressFill) uploadProgressFill.style.width = `${percent}%`;
+  if (uploadProgressDetail)
+    uploadProgressDetail.textContent =
+      detail || `${file.name} · ${prettyBytes(file.size)}`;
+}
+
+function uploadFileWithProgress(file, index, total) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append("document", file, file.name);
+
+    // Auto-fill folder context
+    const folderInputVal =
+      document.getElementById("folderNameInput")?.value?.trim() || "";
+    if (folderInputVal) {
+      formData.append("folder_name", folderInputVal);
+    }
+
+    xhr.open(
+      "POST",
+      `/api/bots/${state.activeBot.id}/chats/${encodeURIComponent(state.activeChat.chat_id)}/files`,
+    );
+    xhr.setRequestHeader("Authorization", `Bearer ${state.token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const pct = Math.round((e.loaded / e.total) * 100);
+      updateUploadProgress(pct, file, index, total);
+    };
+
+    xhr.onerror = () => reject(new Error(`Failed to upload ${file.name}`));
+    xhr.onload = () => {
+      let payload = {};
+      try {
+        payload = JSON.parse(xhr.responseText || "{}");
+      } catch (_e) {}
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(
+          new Error(
+            payload.error ||
+              payload.message ||
+              `Upload failed for ${file.name}`,
+          ),
+        );
+        return;
+      }
+      resolve(payload);
+    };
+    xhr.send(formData);
+  });
+}
+
+async function uploadSelectedFiles() {
+  const files =
+    pendingUploadFiles.length ? pendingUploadFiles : (
+      Array.from(fileInput?.files || [])
+    );
+  if (!files.length) return;
+
+  closeModal(fileModal);
+  let completed = 0;
+  let failed = 0;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    updateUploadProgress(
+      0,
+      file,
+      i + 1,
+      files.length,
+      `Preparing ${file.name}`,
+    );
+    try {
+      await uploadFileWithProgress(file, i + 1, files.length);
+      completed++;
+    } catch (err) {
+      failed++;
+      showToast(err.message, "error");
+    }
+  }
+
+  await reloadFiles();
+  clearUploadSelection();
+  uploadProgressPopup.classList.add("hidden");
+
+  if (failed) {
+    showToast(`${completed} uploaded, ${failed} failed.`, "error");
+  } else {
+    showToast(`All ${completed} files uploaded successfully.`, "success");
+  }
+}
+
+// Render Left Sidebar Connected Bots list
+function renderBots() {
+  botList.innerHTML = "";
+  if (!state.bots.length) {
+    botList.innerHTML =
+      '<span class="sidebar-section-header" style="text-transform:none; padding-left:12px;">No bots. Click add.</span>';
+    return;
+  }
+
+  state.bots.forEach((bot) => {
+    const active = state.activeBot?.id === bot.id;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `workspace-nav-item ${active ? "active" : ""}`;
+    btn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z"/><path d="M12 6v6l4 2"/></svg>
+      <span>${escapeHtml(bot.name || bot.username)}</span>
+    `;
+    btn.addEventListener("click", () => selectBot(bot));
+    botList.appendChild(btn);
+  });
+
+  applySidebarTooltips();
+}
+
+// Render Sidebar Chats under Workspaces category
+function renderChats() {
+  chatList.innerHTML = "";
+  if (!state.activeBot) return;
+
+  if (!state.chats.length) {
+    chatList.innerHTML =
+      '<span class="sidebar-section-header" style="text-transform:none; padding-left:12px;">No workspaces synced.</span>';
+    return;
+  }
+
+  state.chats.forEach((chat) => {
+    const isSelected = state.activeChat?.chat_id === chat.chat_id;
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = `workspace-nav-item ${isSelected && state.activeSection === "workspaces" ? "active" : ""}`;
+    item.setAttribute("data-chat-id", chat.chat_id);
+
+    // Choose professional icon based on workspace name
+    const title = (chat.title || chat.chat_id).toLowerCase();
+    let svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>`;
+    if (title.includes("work") || title.includes("drive")) {
+      svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`;
+    } else if (
+      title.includes("college") ||
+      title.includes("class") ||
+      title.includes("study")
+    ) {
+      svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2.5 3 6 3s6-1 6-3v-5"/></svg>`;
+    } else if (title.includes("family") || title.includes("home")) {
+      svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+    }
+
+    item.innerHTML = `
+      ${svgIcon}
+      <span>${escapeHtml(chat.title || chat.chat_id)}</span>
+    `;
+
+    item.addEventListener("click", () => {
+      selectChat(chat);
+    });
+
+    chatList.appendChild(item);
+  });
+
+  applySidebarTooltips();
+}
+
+async function selectBot(bot) {
+  return withLoading("Opening bot workspace...", async () => {
+    state.activeBot = bot;
+    state.activeChat = null;
+    state.chats = [];
+    state.files = [];
+
+    syncChatsBtn.disabled = false;
+    reloadFilesBtn.disabled = true;
+    uploadBtn.disabled = true;
+
+    renderBots();
+    renderChats();
+    renderFiles();
+
+    await loadChats();
+    const selected = state.chats.find((chat) => chat.selected);
+    if (selected) {
+      state.activeChat = selected;
+      uploadBtn.disabled = false;
+      reloadFilesBtn.disabled = false;
+      await reloadFiles();
+      setViewSection("workspaces");
+    }
+  });
+}
+
+async function selectChat(chat) {
+  if (!state.activeBot) return;
+  return withLoading("Selecting chat...", async () => {
+    await api(
+      `/api/bots/${state.activeBot.id}/chats/${encodeURIComponent(chat.chat_id)}/select`,
+      {
+        method: "POST",
+      },
+    );
+    state.activeChat = chat;
+    state.chats = state.chats.map((item) => ({
+      ...item,
+      selected: item.chat_id === chat.chat_id,
+    }));
+
+    uploadBtn.disabled = false;
+    reloadFilesBtn.disabled = false;
+
+    await reloadFiles();
+    setViewSection("workspaces");
+  });
+}
+
+async function reloadFiles() {
+  if (!state.activeBot || !state.activeChat) return;
+  return withLoading("Loading files...", async () => {
+    const payload = await api(
+      `/api/bots/${state.activeBot.id}/chats/${encodeURIComponent(state.activeChat.chat_id)}/files`,
+    );
+    state.files = unwrap(payload) || [];
+    renderFiles();
+  });
+}
+
+async function loadBots() {
+  return withLoading("Loading connected bots...", async () => {
+    const payload = await api("/api/bots");
+    state.bots = unwrap(payload) || [];
+    renderBots();
+
+    if (state.bots.length) {
+      const preferred =
+        state.bots.find((bot) => bot.active_chat_id) || state.bots[0];
+      await selectBot(preferred);
+    } else {
+      state.activeBot = null;
+      state.activeChat = null;
+      state.chats = [];
+      state.files = [];
+      renderChats();
+      renderFiles();
+      workspaceTitle.innerHTML =
+        "Select a bot and chat <span class='subtitle'>Connect your first bot to start storing files.</span>";
+    }
+  });
+}
+
+async function loadChats() {
+  if (!state.activeBot) return;
+  return withLoading("Loading chats...", async () => {
+    const payload = await api(`/api/bots/${state.activeBot.id}/chats`);
+    state.chats = unwrap(payload) || [];
+    renderChats();
+  });
+}
+
+function applyUser() {
+  if (!state.user) return;
+  const nameVal = state.user.name || "User";
+  const emailVal = state.user.email || "user@example.com";
+
+  userName.textContent = nameVal;
+  userEmail.textContent = emailVal;
+
+  const initial = nameVal.trim().charAt(0).toUpperCase();
+  avatar.textContent = initial;
+  avatarBadge.textContent = initial;
+  userBadgeName.textContent = nameVal;
+
+  document.getElementById("settingsUserName").value = nameVal;
+}
+
+function clearSession() {
+  state.token = "";
+  state.user = null;
+  state.bots = [];
+  state.chats = [];
+  state.files = [];
+  state.activeBot = null;
+  state.activeChat = null;
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+// Unified Event Bindings
+function bindEvents() {
+  // Authentication tab switches
+  document.querySelectorAll("[data-auth-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const mode = button.dataset.authTab;
+      document
+        .querySelectorAll("[data-auth-tab]")
+        .forEach((btn) => btn.classList.toggle("active", btn === button));
+      loginForm.classList.toggle("hidden", mode !== "login");
+      registerForm.classList.toggle("hidden", mode !== "register");
+    });
+  });
+
+  // Login Submit handler
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(loginForm);
+    try {
+      await withLoading("Signing in...", async () => {
+        const res = await api("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify(Object.fromEntries(formData.entries())),
+        });
+        const payload = unwrap(res);
+        state.token = payload.token;
+        state.user = payload.user;
+        localStorage.setItem(STORAGE_KEY, state.token);
+        applyUser();
+        appScreen.classList.remove("hidden");
+        authScreen.classList.add("hidden");
+        await loadBots();
+      });
+      showToast("Login successful", "success");
+    } catch (err) {
+      showAuthMessage(err.message, true);
+    }
+  });
+
+  // Register Submit handler
+  registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(registerForm);
+    try {
+      await withLoading("Creating account...", async () => {
+        const res = await api("/api/auth/register", {
+          method: "POST",
+          body: JSON.stringify(Object.fromEntries(formData.entries())),
+        });
+        const payload = unwrap(res);
+        state.token = payload.token;
+        state.user = payload.user;
+        localStorage.setItem(STORAGE_KEY, state.token);
+        applyUser();
+        appScreen.classList.remove("hidden");
+        authScreen.classList.add("hidden");
+        await loadBots();
+      });
+      showToast("Account created successfully", "success");
+    } catch (err) {
+      showAuthMessage(err.message, true);
+    }
+  });
+
+  // Sidebar controls
+  sidebarToggle.addEventListener("click", () =>
+    setSidebarCollapsed(!state.sidebarCollapsed),
+  );
+  createBotToggle.addEventListener("click", () => openModal(botModal));
+
+  // Theme toggle
+  const themeToggle = document.getElementById("themeToggle");
+  function applyTheme(isDark) {
+    const theme = isDark ? "dark" : "light";
+    state.theme = theme;
+    localStorage.setItem("telerealm.theme", theme);
+    document.body.classList.toggle("dark-mode", isDark);
+  }
+  // Initialize theme from storage
+  const storedTheme = localStorage.getItem("telerealm.theme") || "light";
+  applyTheme(storedTheme === "dark");
+  themeToggle.addEventListener("click", () => {
+    const isDark = document.body.classList.contains("dark-mode");
+    applyTheme(!isDark);
+  });
+
+  // Navigation View switching
+
+  createBotToggle.addEventListener("click", () => openModal(botModal));
+
+  // Navigation View switching
+  document
+    .getElementById("navHome")
+    .addEventListener("click", () => setViewSection("home"));
+  document
+    .getElementById("navWorkspaces")
+    .addEventListener("click", () => setViewSection("workspaces"));
+  document.getElementById("navSearch").addEventListener("click", () => {
+    setViewSection("home");
+    fileSearch.focus();
+  });
+  document.getElementById("navNotifications").addEventListener("click", () => {
+    showToast("You have 0 unread alerts at this time.", "success");
+  });
+
+  // Categories buttons triggers
+  document
+    .getElementById("catPhotos")
+    .addEventListener("click", () => setViewSection("category", "photos"));
+  document
+    .getElementById("catVideos")
+    .addEventListener("click", () => setViewSection("category", "videos"));
+  document
+    .getElementById("catDocuments")
+    .addEventListener("click", () => setViewSection("category", "documents"));
+  document
+    .getElementById("catAudio")
+    .addEventListener("click", () => setViewSection("category", "audio"));
+  document
+    .getElementById("catShared")
+    .addEventListener("click", () => setViewSection("category", "shared"));
+  document
+    .getElementById("catTrash")
+    .addEventListener("click", () => setViewSection("trash"));
+
+  // Settings & Help Support Modal click triggers
+  document
+    .getElementById("btnSettings")
+    .addEventListener("click", () => openModal(settingsModal));
+  document
+    .getElementById("userBadge")
+    .addEventListener("click", () => openModal(settingsModal));
+  document
+    .getElementById("btnHelp")
+    .addEventListener("click", () => openModal(helpModal));
+
+  // Breadcrumbs folder navigation Back link
+  backBtn.addEventListener("click", () => {
+    state.activeFolder = null;
+    renderFiles();
+  });
+
+  // Topbar Upload File Modal
+  uploadBtn.addEventListener("click", () => {
+    clearUploadSelection();
+    // Auto-fill folder context
+    const fInput = document.getElementById("folderNameInput");
+    if (fInput) {
+      fInput.value = state.activeFolder || "";
+    }
+    openModal(fileModal);
+  });
+
+  if (pickFilesBtn)
+    pickFilesBtn.addEventListener("click", () => fileInput?.click());
+  if (fileInput) {
+    fileInput.addEventListener("change", (e) =>
+      syncPendingUploadFiles(e.target.files),
+    );
+  }
+
+  // Uploader Drag and drop
+  if (fileDropzone) {
+    fileDropzone.addEventListener("click", (e) => {
+      if (e.target !== pickFilesBtn) fileInput?.click();
+    });
+
+    fileDropzone.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      dragDepth++;
+      fileDropzone.classList.add("is-dragover");
+    });
+    fileDropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      fileDropzone.classList.add("is-dragover");
+    });
+    fileDropzone.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) fileDropzone.classList.remove("is-dragover");
+    });
+    fileDropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dragDepth = 0;
+      fileDropzone.classList.remove("is-dragover");
+      syncPendingUploadFiles(e.dataTransfer?.files || []);
+    });
+  }
+
+  // Load Chats, Reload Files triggers
+  syncChatsBtn.addEventListener("click", async () => {
+    if (!state.activeBot) return;
+    try {
+      await withLoading("Syncing chats...", async () => {
+        await api(`/api/bots/${state.activeBot.id}/sync`, { method: "POST" });
+        await loadChats();
+      });
+      showToast("Workspace synced successfully", "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+
+  reloadFilesBtn.addEventListener("click", async () => {
+    try {
+      await reloadFiles();
+      showToast("Storage refreshed", "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+
+  logoutBtn.addEventListener("click", () => {
+    clearSession();
+    appScreen.classList.add("hidden");
+    authScreen.classList.remove("hidden");
+    showToast("Logged out successfully", "success");
+  });
+
+  // Search filter
+  fileSearch.addEventListener("input", (e) => {
+    state.search = e.target.value || "";
+    state.currentPage = 1;
+    renderFiles();
+  });
+
+  // Dates Range & Folder filters inputs
+  dateFromFilter?.addEventListener("change", () => {
+    state.currentPage = 1;
+    renderFiles();
+  });
+  dateToFilter?.addEventListener("change", () => {
+    state.currentPage = 1;
+    renderFiles();
+  });
+  folderFilterInput?.addEventListener("input", (e) => {
+    state.folderFilter = e.target.value || "";
+    state.currentPage = 1;
+    renderFiles();
+  });
+
+  // Grid/List Modes switches
+  gridViewBtn.addEventListener("click", () => {
+    state.viewMode = "grid";
+    gridViewBtn.classList.add("active");
+    listViewBtn.classList.remove("active");
+    renderFiles();
+  });
+  listViewBtn.addEventListener("click", () => {
+    state.viewMode = "list";
+    listViewBtn.classList.add("active");
+    gridViewBtn.classList.remove("active");
+    renderFiles();
+  });
+
+  // Selection controls
+  selectVisibleBtn.addEventListener("click", () => {
+    const visible = getFilteredFiles().slice(
+      (state.currentPage - 1) * state.pageSize,
+      state.currentPage * state.pageSize,
+    );
+    if (visible.length === 0) return;
+    visible.forEach((f) => state.selectedFileIDs.add(f.record_id));
+    renderSelectionSummary();
+    renderFiles();
+  });
+
+  clearSelectionBtn?.addEventListener("click", () => clearSelection());
+
+  // Bulk Operations
+  bulkDownloadBtn.addEventListener("click", () => {
+    const selected = state.files.filter((f) =>
+      state.selectedFileIDs.has(f.record_id),
+    );
+    selected.forEach((f, idx) => {
+      window.setTimeout(() => {
+        if (f.secure_url)
+          window.open(f.secure_url, "_blank", "noopener,noreferrer");
+      }, idx * 150);
+    });
+    showToast("Opening selected shareable URLs", "success");
+  });
+
+  bulkFolderBtn.addEventListener("click", async () => {
+    const selected = state.files.filter((f) =>
+      state.selectedFileIDs.has(f.record_id),
+    );
+    const nextF = prompt(
+      "Enter destination folder tag name:",
+      state.activeFolder || "",
+    );
+    if (nextF === null) return;
+    const tag = nextF.trim();
+    try {
+      await withLoading("Updating folder tags...", async () => {
+        for (const file of selected) {
+          await api(`/api/files/${file.record_id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ folder_name: tag }),
+          });
+        }
+        await reloadFiles();
+        clearSelection();
+      });
+      showToast("Files updated successfully", "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+
+  bulkDeleteBtn.addEventListener("click", () => {
+    const count = state.selectedFileIDs.size;
+    if (state.activeSection === "trash") {
+      if (
+        !confirm(
+          `Are you sure you want to permanently delete these ${count} selected file(s)?`,
+        )
+      )
+        return;
+      withLoading("Deleting files permanently...", async () => {
+        try {
+          for (const id of state.selectedFileIDs) {
+            await api(`/api/files/${id}`, { method: "DELETE" });
+            state.trashedFileIDs.delete(id);
+          }
+          localStorage.setItem(
+            TRASH_STORAGE_KEY,
+            JSON.stringify(Array.from(state.trashedFileIDs)),
+          );
+          clearSelection();
+          await reloadFiles();
+          showToast("Files deleted permanently", "success");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
+      });
+    } else {
+      if (!confirm(`Move ${count} selected file(s) to Trash?`)) return;
+      state.selectedFileIDs.forEach((id) => state.trashedFileIDs.add(id));
+      saveTrash();
+      clearSelection();
+      showToast("Files moved to Trash", "success");
+    }
+  });
+
+  // Pagination clicks
+  prevPageBtn.addEventListener("click", () => {
+    if (state.currentPage > 1) {
+      state.currentPage--;
+      renderFiles();
+    }
+  });
+  nextPageBtn.addEventListener("click", () => {
+    state.currentPage++;
+    renderFiles();
+  });
+
+  // Modal closers
+  document.querySelectorAll("[data-close-modal]").forEach((button) => {
+    button.addEventListener("click", () => {
+      closeModal(botModal);
+      closeModal(fileModal);
+      closeModal(settingsModal);
+      closeModal(helpModal);
+      closeModal(previewModal);
+      clearUploadSelection();
+    });
+  });
+
+  // Form submits
+  document.getElementById("botForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+      await withLoading("Saving bot token...", async () => {
+        await api("/api/bots", {
+          method: "POST",
+          body: JSON.stringify(Object.fromEntries(formData.entries())),
+        });
+        closeModal(botModal);
+        e.target.reset();
+        await loadBots();
+      });
+      showToast("Bot connected successfully", "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+
+  document.getElementById("fileForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await uploadSelectedFiles();
+      e.target.reset();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+
+  // Settings Save profile profile form
+  document
+    .getElementById("btnSaveSettings")
+    .addEventListener("click", async () => {
+      const inputVal = document.getElementById("settingsUserName").value.trim();
+      if (!inputVal) return;
+      try {
+        // Mock/save user name local display
+        state.user.name = inputVal;
+        applyUser();
+        closeModal(settingsModal);
+        showToast("Profile settings updated locally", "success");
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
+
+  // Image Preview gallery sliding keys
+  previewPrevBtn.addEventListener("click", () => previewStep(-1));
+  previewNextBtn.addEventListener("click", () => previewStep(1));
+  document.addEventListener("keydown", (e) => {
+    if (previewModal.classList.contains("hidden")) return;
+    if (e.key === "ArrowLeft") previewStep(-1);
+    else if (e.key === "ArrowRight") previewStep(1);
+    else if (e.key === "Escape") closeModal(previewModal);
+  });
+}
+
+// Main Bootstrap Loader
+async function bootstrap() {
+  bindEvents();
+  setSidebarCollapsed(state.sidebarCollapsed);
+  setViewSection("home");
+
+  if (!state.token) {
+    authScreen.classList.remove("hidden");
+    appScreen.classList.add("hidden");
+    return;
+  }
+
+  try {
+    const me = await api("/api/me");
+    state.user = unwrap(me);
+    applyUser();
+
+    appScreen.classList.remove("hidden");
+    authScreen.classList.add("hidden");
+
+    await loadBots();
+  } catch (err) {
+    clearSession();
+    authScreen.classList.remove("hidden");
+    appScreen.classList.add("hidden");
+    showAuthMessage(err.message, true);
+  }
+}
+
+bootstrap();

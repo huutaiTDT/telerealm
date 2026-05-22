@@ -8,7 +8,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"telerealm/models"
 
 	"github.com/google/uuid"
 )
@@ -17,6 +20,8 @@ type FileRepository interface {
 	SendDocument(botToken, chatID string, file io.Reader, fileName string) (string, error)
 	GetFileInfo(botToken, fileID string) (string, int, error)
 	CheckBotAndChat(botToken, chatID string) (botInfo, chatInfo interface{}, botInChat, botIsAdmin bool, err error)
+	GetBotInfo(botToken string) (map[string]interface{}, error)
+	ListRecentChats(botToken string) ([]models.ChatSummary, error)
 }
 
 type fileRepository struct{}
@@ -103,6 +108,10 @@ func (r *fileRepository) SendDocument(botToken, chatID string, file io.Reader, f
 }
 
 func (r *fileRepository) GetFileInfo(botToken, fileID string) (string, int, error) {
+	if strings.TrimSpace(fileID) == "" {
+		return "", 0, fmt.Errorf("file_id is required")
+	}
+
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/getFile?file_id=%s", botToken, fileID)
 
 	resp, err := http.Get(url)
@@ -204,6 +213,102 @@ func (r *fileRepository) getBotInfo(botToken string) (interface{}, error) {
 	}
 
 	return getMeResp.Result, nil
+}
+
+func (r *fileRepository) GetBotInfo(botToken string) (map[string]interface{}, error) {
+	result, err := r.getBotInfo(botToken)
+	if err != nil {
+		return nil, err
+	}
+
+	botInfo, ok := result.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unexpected bot info payload")
+	}
+
+	return botInfo, nil
+}
+
+func (r *fileRepository) ListRecentChats(botToken string) ([]models.ChatSummary, error) {
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?limit=100&timeout=0", botToken)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch Telegram updates: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var payload struct {
+		Ok     bool `json:"ok"`
+		Result []struct {
+			Message *struct {
+				Chat struct {
+					ID       int64  `json:"id"`
+					Title    string `json:"title"`
+					Username string `json:"username"`
+					Type     string `json:"type"`
+				} `json:"chat"`
+			} `json:"message"`
+			ChannelPost *struct {
+				Chat struct {
+					ID       int64  `json:"id"`
+					Title    string `json:"title"`
+					Username string `json:"username"`
+					Type     string `json:"type"`
+				} `json:"chat"`
+			} `json:"channel_post"`
+			EditedMessage *struct {
+				Chat struct {
+					ID       int64  `json:"id"`
+					Title    string `json:"title"`
+					Username string `json:"username"`
+					Type     string `json:"type"`
+				} `json:"chat"`
+			} `json:"edited_message"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("failed to decode Telegram updates: %v", err)
+	}
+
+	if !payload.Ok {
+		return nil, fmt.Errorf("telegram API returned not ok status: %s", resp.Status)
+	}
+
+	seen := make(map[string]struct{})
+	chats := make([]models.ChatSummary, 0)
+	appendChat := func(chatID int64, title, username, chatType string) {
+		id := strconv.FormatInt(chatID, 10)
+		if id == "" {
+			return
+		}
+		if _, exists := seen[id]; exists {
+			return
+		}
+		seen[id] = struct{}{}
+		label := strings.TrimSpace(title)
+		if label == "" {
+			label = strings.TrimSpace(username)
+		}
+		if label == "" {
+			label = id
+		}
+		chats = append(chats, models.ChatSummary{ChatID: id, Title: label, Type: chatType})
+	}
+
+	for _, update := range payload.Result {
+		if update.Message != nil {
+			appendChat(update.Message.Chat.ID, update.Message.Chat.Title, update.Message.Chat.Username, update.Message.Chat.Type)
+		}
+		if update.ChannelPost != nil {
+			appendChat(update.ChannelPost.Chat.ID, update.ChannelPost.Chat.Title, update.ChannelPost.Chat.Username, update.ChannelPost.Chat.Type)
+		}
+		if update.EditedMessage != nil {
+			appendChat(update.EditedMessage.Chat.ID, update.EditedMessage.Chat.Title, update.EditedMessage.Chat.Username, update.EditedMessage.Chat.Type)
+		}
+	}
+
+	return chats, nil
 }
 
 func (r *fileRepository) getChatInfo(botToken, chatID string) (interface{}, error) {

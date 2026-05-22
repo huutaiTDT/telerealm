@@ -1,0 +1,889 @@
+<!-- @format -->
+
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeleRealm Drive</title>
+    <meta
+      name="description"
+      content="Google Drive-style workspace for Telegram bot storage, chat browsing, and file management." />
+    <link rel="stylesheet" href="/ui/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <!-- Authentication Screen -->
+      <section class="auth-screen" id="authScreen">
+        <div class="auth-card">
+          <div class="brand-lockup">
+            <div class="brand-mark">T</div>
+            <div>
+              <h1>TeleRealm Drive</h1>
+            </div>
+          </div>
+
+          <p class="lede">
+            Register an account, connect a bot token, load chats, and manage
+            file storage in a Drive-like workspace.
+          </p>
+
+          <div class="auth-tabs">
+            <button class="tab active" data-auth-tab="login" type="button">
+              Đăng nhập
+            </button>
+            <button class="tab" data-auth-tab="register" type="button">
+              Đăng ký
+            </button>
+          </div>
+
+          <!-- Login Form -->
+          <form id="loginForm" class="auth-form">
+            <label>
+              Email
+              <input
+                type="email"
+                name="email"
+                placeholder="you@example.com"
+                required />
+            </label>
+            <label>
+              Mật khẩu
+              <input
+                type="password"
+                name="password"
+                placeholder="••••••••"
+                required />
+            </label>
+            <button class="primary-btn" type="submit">Đăng nhập</button>
+          </form>
+
+          <!-- Register Form -->
+          <form id="registerForm" class="auth-form hidden">
+            <label>
+              Tên
+              <input
+                type="text"
+                name="name"
+                placeholder="Tên hiển thị"
+                required />
+            </label>
+            <label>
+              Email
+              <input
+                type="email"
+                name="email"
+                placeholder="you@example.com"
+                required />
+            </label>
+            <label>
+              Mật khẩu
+              <input
+                type="password"
+                name="password"
+                placeholder="Tối thiểu 8 ký tự"
+                required />
+            </label>
+            <button class="primary-btn" type="submit">Tạo tài khoản</button>
+          </form>
+
+          <p id="authMessage" class="message"></p>
+        </div>
+      </section>
+
+      <!-- Main Application Workspace Screen -->
+      <section class="app-screen hidden" id="appScreen">
+        <!-- Left Sidebar -->
+        <aside class="sidebar">
+          <div class="sidebar-brand">
+            <div class="brand-mark small">T</div>
+            <strong>Drive</strong>
+            <button
+              id="sidebarToggle"
+              type="button"
+              aria-label="Collapse sidebar"
+              title="Toggle sidebar">
+              ☰
+            </button>
+          </div>
+
+          <!-- Core Navigation Items -->
+          <nav class="drive-nav">
+            <button id="navHome" class="drive-nav__item active" type="button">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              <span>Home</span>
+            </button>
+            <button id="navWorkspaces" class="drive-nav__item" type="button">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round">
+                <rect width="7" height="9" x="3" y="3" rx="1" />
+                <rect width="7" height="5" x="14" y="3" rx="1" />
+                <rect width="7" height="9" x="14" y="12" rx="1" />
+                <rect width="7" height="5" x="3" y="16" rx="1" />
+              </svg>
+              <span>Workspaces</span>
+            </button>
+            <button id="navSearch" class="drive-nav__item" type="button">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <span>Search</span>
+            </button>
+            <button
+              id="navNotifications"
+              class="drive-nav__item"
+              type="button"
+              style="position: relative">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+              <span>Notifications</span>
+            </button>
+          </nav>
+
+          <!-- Workspaces section mapping active chats -->
+          <div class="sidebar-section">
+            <div class="sidebar-section-header">
+              <span>Workspaces</span>
+              <svg
+                id="toggleWorkspacesSection"
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+            <div id="botList" class="sidebar-section-content">
+              <!-- Dynamically mapped bot items -->
+            </div>
+            <div
+              id="chatList"
+              class="sidebar-section-content"
+              style="margin-top: 4px">
+              <!-- Dynamically mapped chat items (renders as Sub-Workspaces) -->
+            </div>
+
+            <button id="createBotToggle" class="add-bot-btn" type="button">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5">
+                <path d="M5 12h14M12 5v14" />
+              </svg>
+              <span>Add bot token</span>
+            </button>
+          </div>
+
+          <!-- Categories filter section -->
+          <div class="sidebar-section">
+            <div class="sidebar-section-header">
+              <span>Categories</span>
+              <svg
+                id="toggleCategoriesSection"
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+            <div id="categoriesList" class="sidebar-section-content">
+              <button id="catPhotos" class="category-nav-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2">
+                  <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                </svg>
+                <span>Photos</span>
+              </button>
+              <button id="catVideos" class="category-nav-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2">
+                  <path d="m22 8-6 4 6 4V8Z" />
+                  <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+                </svg>
+                <span>Videos</span>
+              </button>
+              <button id="catDocuments" class="category-nav-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2">
+                  <path
+                    d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span>Documents</span>
+              </button>
+              <button id="catAudio" class="category-nav-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2">
+                  <path d="M9 18V5l12-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="16" r="3" />
+                </svg>
+                <span>Audio</span>
+              </button>
+              <button id="catShared" class="category-nav-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span>Shared with me</span>
+              </button>
+              <button id="catTrash" class="category-nav-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2">
+                  <path
+                    d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  <line x1="10" x2="10" y1="11" y2="17" />
+                  <line x1="14" x2="14" y1="11" y2="17" />
+                </svg>
+                <span>Trash</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Bottom Utility block -->
+          <div class="sidebar-bottom">
+            <button id="btnSettings" class="sidebar-bottom-item" type="button">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <span>Settings</span>
+            </button>
+            <button id="btnHelp" class="sidebar-bottom-item" type="button">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <line x1="12" x2="12.01" y1="17" y2="17" />
+              </svg>
+              <span>Help & support</span>
+            </button>
+
+            <button id="themeToggle" class="sidebar-bottom-item" type="button">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2">
+                <circle cx="12" cy="12" r="5" />
+                <path
+                  d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+              <span>Theme</span>
+            </button>
+            <!-- User profile box -->
+            <div class="profile-card">
+              <div class="avatar" id="avatar">U</div>
+              <div class="info">
+                <span class="name" id="userName">User Name</span>
+                <span class="email" id="userEmail">user@example.com</span>
+              </div>
+              <button
+                id="logoutBtn"
+                class="logout-icon-btn"
+                type="button"
+                aria-label="Sign out">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" x2="9" y1="12" y2="12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Right Workspace Main Content -->
+        <section class="workspace">
+          <!-- Topbar -->
+          <div class="drive-header">
+            <div class="header-left">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                <circle cx="9" cy="9" r="2" />
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+              </svg>
+              <span id="topSectionLabel">Workspaces</span>
+            </div>
+
+            <div class="search-shell">
+              <span class="search-icon">🔍</span>
+              <input
+                id="fileSearch"
+                class="search-input"
+                type="search"
+                placeholder="Search files..." />
+            </div>
+
+            <div class="header-right">
+              <button
+                id="uploadBtn"
+                class="header-upload-btn"
+                type="button"
+                disabled>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5">
+                  <path
+                    d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                </svg>
+                Upload file
+              </button>
+              <div id="userBadge" class="user-badge">
+                <div class="avatar" id="avatarBadge">C</div>
+                <span id="userBadgeName">Cody</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Breadcrumbs and Workspace Title -->
+          <div class="workspace-topbar">
+            <button id="backBtn" class="back-btn" type="button">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              Back
+            </button>
+            <div>
+              <h1 id="workspaceTitle" class="active-workspace-title">
+                Select a bot and chat
+                <span id="workspaceSub" class="subtitle"
+                  >Pick a bot, sync chats, then choose one chat to view file
+                  storage.</span
+                >
+              </h1>
+            </div>
+          </div>
+
+          <!-- Secondary Toolbar: Filters, Operations, Views -->
+          <div class="file-toolbar-section">
+            <div class="file-toolbar">
+              <!-- Sync / Reload helpers -->
+              <button
+                id="syncChatsBtn"
+                class="ghost-btn"
+                type="button"
+                disabled>
+                Load chats
+              </button>
+              <button
+                id="reloadFilesBtn"
+                class="ghost-btn"
+                type="button"
+                disabled>
+                Reload files
+              </button>
+
+              <div
+                style="
+                  width: 1px;
+                  height: 24px;
+                  background: var(--border-color);
+                  margin: 0 4px;
+                "></div>
+
+              <input
+                id="dateFromFilter"
+                type="date"
+                class="toolbar-input"
+                aria-label="Filter from date" />
+              <input
+                id="dateToFilter"
+                type="date"
+                class="toolbar-input"
+                aria-label="Filter to date" />
+              <input
+                id="folderFilter"
+                type="text"
+                class="toolbar-input toolbar-input--wide"
+                placeholder="Filter folder..."
+                aria-label="Filter by folder" />
+
+              <button id="selectVisibleBtn" class="ghost-btn" type="button">
+                Select visible
+              </button>
+
+              <button
+                id="bulkDownloadBtn"
+                class="ghost-btn"
+                type="button"
+                disabled>
+                Download selected
+              </button>
+              <button
+                id="bulkFolderBtn"
+                class="ghost-btn"
+                type="button"
+                disabled>
+                Move to folder
+              </button>
+              <button
+                id="bulkDeleteBtn"
+                class="ghost-btn danger"
+                type="button"
+                disabled>
+                Delete selected
+              </button>
+
+              <div style="margin-left: auto">
+                <div class="view-toggle" role="group" aria-label="File view">
+                  <button
+                    id="gridViewBtn"
+                    class="active"
+                    type="button"
+                    aria-label="Grid view">
+                    ⊞
+                  </button>
+                  <button
+                    id="listViewBtn"
+                    class=""
+                    type="button"
+                    aria-label="List view">
+                    ☰
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Selection and Pagination summary bar -->
+            <div class="file-toolbar file-toolbar--secondary">
+              <div>
+                <span id="selectionSummary" class="selection-summary"
+                  >No files selected.</span
+                >
+                <button
+                  id="clearSelectionBtn"
+                  class="link-btn hidden"
+                  type="button">
+                  Clear selection
+                </button>
+              </div>
+
+              <div class="pagination-controls">
+                <span id="paginationSummary" class="pagination-summary"></span>
+                <button
+                  id="prevPageBtn"
+                  class="ghost-btn"
+                  type="button"
+                  style="padding: 4px 10px">
+                  Prev
+                </button>
+                <button
+                  id="nextPageBtn"
+                  class="ghost-btn"
+                  type="button"
+                  style="padding: 4px 10px">
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Folders & Files Main Panel -->
+          <div class="workspace-content">
+            <!-- Folder Grid list -->
+            <div id="foldersSection" class="folders-section hidden">
+              <h3 class="section-title">Folders</h3>
+              <div id="foldersGrid" class="folders-grid">
+                <!-- Dynamic folder cards: France, London, Japan... -->
+              </div>
+            </div>
+
+            <!-- Files list Grid/List modes -->
+            <div class="files-section">
+              <div class="section-title">
+                <span>Files</span>
+                <span
+                  id="fileCount"
+                  class="pagination-summary"
+                  style="font-weight: 500"
+                  >0 files</span
+                >
+              </div>
+              <div id="selectedChatInfo" class="hidden"></div>
+              <div id="fileGrid" class="files-grid">
+                <!-- Dynamic file cards -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Alert Toasts -->
+          <p id="toast" class="toast" aria-live="polite"></p>
+        </section>
+      </section>
+    </main>
+
+    <!-- Global Loading Overlay -->
+    <div
+      id="loadingOverlay"
+      class="loading-overlay hidden"
+      aria-live="polite"
+      aria-busy="true">
+      <div class="loading-card">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <p id="loadingText">Processing request...</p>
+      </div>
+    </div>
+
+    <!-- Sequential Uploading progress pop-up -->
+    <div
+      id="uploadProgressPopup"
+      class="upload-progress-popup hidden"
+      aria-live="polite"
+      aria-busy="true">
+      <div class="upload-progress-popup__head">
+        <strong id="uploadProgressLabel">Uploading files</strong>
+        <span id="uploadProgressMeta">0%</span>
+      </div>
+      <div class="upload-progress-bar" aria-hidden="true">
+        <div id="uploadProgressFill" class="upload-progress-fill"></div>
+      </div>
+      <p id="uploadProgressDetail" class="upload-progress-popup__detail">
+        Preparing files...
+      </p>
+    </div>
+
+    <!-- Modal: Image Preview Slider -->
+    <div id="previewModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="preview"></div>
+      <div class="modal-card modal-card--preview">
+        <div class="modal-head">
+          <h2 id="previewTitle">Preview</h2>
+          <button class="close-btn" type="button" data-close-modal="preview">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body" style="padding: 16px">
+          <div id="previewChatInfo" class="hidden"></div>
+          <div class="preview-stage">
+            <button
+              id="previewPrevBtn"
+              class="preview-nav"
+              type="button"
+              aria-label="Previous">
+              ‹
+            </button>
+            <img id="previewImage" alt="Preview" />
+            <button
+              id="previewNextBtn"
+              class="preview-nav"
+              type="button"
+              aria-label="Next">
+              ›
+            </button>
+          </div>
+          <div class="preview-footer">
+            <span id="previewMeta" class="preview-meta"></span>
+            <a
+              id="previewOpenLink"
+              class="primary-btn"
+              href="#"
+              target="_blank"
+              rel="noreferrer"
+              >Open original</a
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Connect Telegram Bot Token -->
+    <div id="botModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="bot"></div>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Connect Telegram bot</h2>
+          <button class="close-btn" type="button" data-close-modal="bot">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="botForm" class="modal-form">
+            <label>
+              Bot name
+              <input type="text" name="name" placeholder="My bot" required />
+            </label>
+            <label>
+              Bot token
+              <textarea
+                name="token"
+                rows="3"
+                placeholder="123456:ABCDEF..."
+                required></textarea>
+            </label>
+            <button class="primary-btn" type="submit">
+              Save bot and load chats
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Drop File Uploader Panel -->
+    <div id="fileModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="file"></div>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Upload file</h2>
+          <button class="close-btn" type="button" data-close-modal="file">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="fileForm" class="modal-form">
+            <div
+              id="fileDropzone"
+              class="file-dropzone"
+              tabindex="0"
+              role="button"
+              aria-label="Upload files by clicking or dragging files here">
+              <input
+                id="fileInput"
+                type="file"
+                name="documents"
+                multiple
+                hidden />
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5">
+                <path
+                  d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+              </svg>
+              <strong>Drag files here or choose multiple files</strong>
+              <p id="fileDropHint">No files selected yet.</p>
+              <button id="pickFilesBtn" class="ghost-btn" type="button">
+                Choose files
+              </button>
+            </div>
+
+            <label style="margin-top: 12px">
+              Folder name
+              <input
+                id="folderNameInput"
+                type="text"
+                name="folder_name"
+                placeholder="Shared assets, May 2026, Travel..." />
+            </label>
+
+            <div id="selectedFilesList" class="selected-files-list"></div>
+            <button class="primary-btn" type="submit" style="margin-top: 8px">
+              Upload to selected chat
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Settings Pane -->
+    <div id="settingsModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="settings"></div>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Settings</h2>
+          <button class="close-btn" type="button" data-close-modal="settings">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="settings-grid">
+            <div class="settings-card">
+              <h3>TeleRealm Drive Storage</h3>
+              <p>
+                Files are stored directly on Telegram's secured cloud
+                architecture under your bot's updates limits.
+              </p>
+              <div
+                class="upload-progress-bar"
+                style="height: 8px; margin-bottom: 6px">
+                <div
+                  class="upload-progress-fill"
+                  style="width: 15%; background: var(--success)"></div>
+              </div>
+              <span
+                class="pagination-summary"
+                style="font-size: 11.5px; font-weight: 550"
+                >Using 1.2 GB of Unlimited Storage</span
+              >
+            </div>
+            <div class="settings-card">
+              <h3>Account Credentials</h3>
+              <div class="modal-form" style="margin-top: 8px">
+                <label>
+                  Display Name
+                  <input id="settingsUserName" type="text" value="Cody" />
+                </label>
+                <button
+                  id="btnSaveSettings"
+                  class="primary-btn"
+                  type="button"
+                  style="padding: 10px">
+                  Save Profile
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Help Support Guide -->
+    <div id="helpModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="help"></div>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Help & support</h2>
+          <button class="close-btn" type="button" data-close-modal="help">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="settings-grid">
+            <div class="settings-card">
+              <h3>How to connect bots?</h3>
+              <p>
+                1. Open Telegram app and chat with
+                <strong>@BotFather</strong>.<br />2. Send
+                <code>/newbot</code> command and name your bot.<br />3. Copy the
+                Bot API Token key and paste it via
+                <strong>Add Bot</strong> here.<br />4. Add your bot to a group
+                chat or message it, then click **Load chats**.
+              </p>
+            </div>
+            <div class="settings-card">
+              <h3>How to browse Folders?</h3>
+              <p>
+                When uploading files, simply specify a folder tag name (e.g.
+                <code>Travel 2026</code>). The system will automatically build
+                premium folders and organize your dashboard hierarchy.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/ui/app.js"></script>
+  </body>
+</html>
