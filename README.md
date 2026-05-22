@@ -99,6 +99,63 @@ docker compose up -d
 docker compose down
 ```
 
+## HTTPS Deployment
+
+The production domain must be served over HTTPS. Browser APIs such as
+`crypto.randomUUID()` are only guaranteed in secure contexts, so serving the app
+over plain HTTP can break injected or third-party scripts.
+
+### Nginx + Let's Encrypt
+
+The included `telerealm.conf` proxies HTTPS traffic to the Go app on
+`127.0.0.1:7777` and redirects HTTP to HTTPS.
+
+1. Point DNS for `telerealm.gitlabserver.id.vn` and
+   `www.telerealm.gitlabserver.id.vn` to the server.
+2. Start the app:
+
+```bash
+docker compose up -d --build
+```
+
+3. Install Nginx and Certbot, then request the certificate before enabling the
+   HTTPS site:
+
+```bash
+sudo systemctl stop nginx
+sudo certbot certonly --standalone \
+  -d telerealm.gitlabserver.id.vn \
+  -d www.telerealm.gitlabserver.id.vn
+sudo systemctl start nginx
+```
+
+4. Enable the Nginx site and reload:
+
+```bash
+sudo cp telerealm.conf /etc/nginx/sites-available/telerealm.conf
+sudo ln -sf /etc/nginx/sites-available/telerealm.conf /etc/nginx/sites-enabled/telerealm.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+For renewal with the standalone Certbot method, use hooks so port 80 is free
+while Certbot validates the domain:
+
+```bash
+sudo certbot renew --pre-hook "systemctl stop nginx" --post-hook "systemctl start nginx"
+```
+
+If Cloudflare is in front of the server, use SSL/TLS mode `Full (strict)` and
+keep the origin certificate valid. Do not use Flexible SSL, because the browser
+may appear HTTPS while the origin remains misconfigured.
+
+### Browser Extension Check
+
+Errors from files named `content.js` or `read.js` usually come from browser
+extensions or an in-app browser, not from this repository. Re-test in a clean
+browser profile, incognito window with extensions disabled, or another browser
+to confirm.
+
 ## Example API Calls
 
 ### Protected upload

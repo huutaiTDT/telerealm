@@ -158,7 +158,15 @@ func (h *Handlers) ListFiles(c *gin.Context) {
 	botID := c.Param("botID")
 	chatID := c.Param("chatID")
 
-	// pagination params
+	if c.Query("page") == "" && c.Query("size") == "" {
+		files := normalizeFileRecordsForResponse(c, h.service.ListFiles(userID, botID, chatID))
+		c.JSON(http.StatusOK, models.Response{Success: true, Message: "Files loaded", Data: map[string]interface{}{
+			"files": files,
+			"meta":  map[string]int{"total": len(files), "page": 1, "size": len(files), "total_pages": 1},
+		}})
+		return
+	}
+
 	pageStr := c.DefaultQuery("page", "1")
 	sizeStr := c.DefaultQuery("size", "8")
 	page, err := strconv.Atoi(pageStr)
@@ -176,12 +184,14 @@ func (h *Handlers) ListFiles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, models.Response{Success: false, Message: "failed to count files", Data: nil})
 		return
 	}
-	files := normalizeFileRecordsForResponse(c, func() []models.FileRecord {
-		f, _ := h.service.ListFilesPaginated(userID, botID, chatID, offset, size)
-		return f
-	}())
+	files, err := h.service.ListFilesPaginated(userID, botID, chatID, offset, size)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Response{Success: false, Message: "failed to load files", Data: nil})
+		return
+	}
+	normalizedFiles := normalizeFileRecordsForResponse(c, files)
 	totalPages := 1
-	if size > 0 {
+	if total > 0 && size > 0 {
 		if total%size == 0 {
 			totalPages = total / size
 		} else {
@@ -190,8 +200,8 @@ func (h *Handlers) ListFiles(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, models.Response{Success: true, Message: "Files loaded", Data: map[string]interface{}{
-		"files": files,
-		"meta": map[string]int{"total": total, "page": page, "size": size, "total_pages": totalPages},
+		"files": normalizedFiles,
+		"meta":  map[string]int{"total": total, "page": page, "size": size, "total_pages": totalPages},
 	}})
 }
 
@@ -295,7 +305,7 @@ func (h *Handlers) CreateShareLink(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, models.Response{Success: true, Message: "Share link created", Data: gin.H{
-		"share":        share,
+		"share":         share,
 		"notifications": notifications,
 	}})
 }
